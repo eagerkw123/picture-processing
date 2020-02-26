@@ -1,0 +1,14 @@
+{
+  "name": "node",
+  "version": "1.0.0",
+  "description": "create by kewang",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "kewang",
+  "license": "ISC",
+  "dependencies": {
+    "canvas": "^2.6.1"
+  }
+}

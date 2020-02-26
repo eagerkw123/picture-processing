@@ -1,0 +1,3 @@
+require 模块返回的是module.export 如果模块了覆盖了module.export,那么外部require到的模块对象都是module.export,而模块内部export上绑定的对象是在模块内有效
+
+nodejs 底层是C++文件操作系统，调用v8引擎 通过v8将C++数据转换成javascript数据
