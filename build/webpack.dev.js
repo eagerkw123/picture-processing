@@ -1,7 +1,7 @@
 const path = require('path')
+const webpack = require('webpack')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const VueLoaderPlugin = require('vue-loader/lib/plugin')
-
 
 module.exports = {
 	entry: path.join(__dirname, '../src/test/test'),
@@ -29,12 +29,17 @@ module.exports = {
 		fs: 'empty'
 	},
 	plugins: [
+		new webpack.HotModuleReplacementPlugin(),
 		new VueLoaderPlugin(),
 		new HtmlWebpackPlugin({
 			template: path.join(__dirname, '../src/test/test.html'),
 			filename: 'test.html'
 		})
 	],
+	devServer: {
+		contentBase: path.join(__dirname, '../dist'),
+		hot: true,
+	},
 	stats: {
 		entrypoints: false,
 		children: false
