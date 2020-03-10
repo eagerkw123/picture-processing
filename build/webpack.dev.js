@@ -25,9 +25,6 @@ module.exports = {
 			]
 		}]
 	},
-	node: {
-		fs: 'empty'
-	},
 	plugins: [
 		new webpack.HotModuleReplacementPlugin(),
 		new VueLoaderPlugin(),
@@ -38,10 +35,6 @@ module.exports = {
 	],
 	devServer: {
 		contentBase: path.join(__dirname, '../dist'),
-		hot: true,
-	},
-	stats: {
-		entrypoints: false,
-		children: false
+		hot: true
 	}
 }

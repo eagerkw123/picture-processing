@@ -28,8 +28,5 @@ module.exports = {
 				include: /\.min\.js$/
 			})
 		]
-	},
-	node: {
-		fs: 'empty'
 	}
 }

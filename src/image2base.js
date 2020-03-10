@@ -1,5 +1,3 @@
-const $ = require('jquery')
-
 module.exports = (imgSrc) => {
   function getBase64Image(img, width, height) {
     var canvas = document.createElement('canvas')
@@ -13,20 +11,20 @@ module.exports = (imgSrc) => {
   var image = new Image()
   image.crossOrigin = ''
   image.src = imgSrc
-  var deferred = $.Deferred()
-  image.onload = function() {
-    deferred.resolve({
-    	base64: getBase64Image(image),
-    	width: image.width,
-    	height: image.height
-    })
-	}
-	image.onerror = function() {
-		const error = {
-			e: 'Picture does not exist: ' + imgSrc
-		}
-		consolo.error(error.e)
-    deferred.reject(error)
-	}
-  return deferred.promise()
+  return new Promise((resolve, reject) => {
+    image.onload = function() {
+      resolve({
+        base64: getBase64Image(image),
+        width: image.width,
+        height: image.height
+      })
+    }
+    image.onerror = function() {
+      const error = {
+        e: 'Picture does not exist: ' + imgSrc
+      }
+      consolo.error(error.e)
+      reject(error)
+    }
+  })
 }

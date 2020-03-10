@@ -11,9 +11,6 @@
   },
   "author": "kewang",
   "license": "ISC",
-  "dependencies": {
-    "jquery": "^3.4.1"
-  },
   "devDependencies": {
     "@babel/core": "^7.8.7",
     "@babel/preset-env": "^7.8.7",
