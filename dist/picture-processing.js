@@ -1,4 +1,14 @@
-/******/ (function(modules) { // webpackBootstrap
+(function webpackUniversalModuleDefinition(root, factory) {
+	if(typeof exports === 'object' && typeof module === 'object')
+		module.exports = factory();
+	else if(typeof define === 'function' && define.amd)
+		define([], factory);
+	else if(typeof exports === 'object')
+		exports["pictureProcessing"] = factory();
+	else
+		root["pictureProcessing"] = factory();
+})(window, function() {
+return /******/ (function(modules) { // webpackBootstrap
 /******/ 	// The module cache
 /******/ 	var installedModules = {};
 /******/
@@ -90,12 +100,135 @@
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "a", function() { return a; });
-// const image2css = require('./image2css')
-// const image2base = require('./image2base')
-// exports.image2css = image2css
-// exports.image2base = image2base
-var a = 123;
+var image2css = __webpack_require__(1);
+
+var image2base = __webpack_require__(2);
+
+/* harmony default export */ __webpack_exports__["default"] = ({
+  image2css: image2css,
+  image2base: image2base
+});
+
+/***/ }),
+/* 1 */
+/***/ (function(module, exports, __webpack_require__) {
+
+/**
+	* 雪碧图position定位说明
+**/
+var image2base = __webpack_require__(2);
+
+var width = 400;
+var number = 2;
+var dis = 50;
+var W = width * number,
+    H = 0,
+    cssText = '';
+var images = [];
+
+var splitImage = function splitImage() {
+  var length = Math.ceil(images.length / number);
+  var array = [];
+
+  for (var i = 0; i < length; i++) {
+    array.push(images.splice(0, number));
+  }
+
+  array.forEach(function (arr, index) {
+    var height = parseInt(width / arr[0].width * arr[0].height);
+    var max = arr.length > 1 ? Math.max(height, parseInt(width / arr[1].width * arr[1].height)) : height;
+    drawImage(arr, max);
+
+    if (index === array.length - 1) {
+      var style = document.createElement('style');
+      style.innerHTML = cssText;
+      document.head.appendChild(style);
+    }
+  });
+};
+
+var drawImage = function drawImage(arr, height) {
+  var canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = height;
+  var ctx = canvas.getContext('2d');
+  var cssName = '';
+  var cssBgSize = '';
+  arr.forEach(function (item, index) {
+    var name = item.name;
+    var canImgHeight = width / item.width * item.height;
+    ctx.drawImage(item.image, index * width, 0, width, canImgHeight);
+    cssName += ".".concat(name, ",");
+    cssBgSize += ".".concat(name, " {background-size: 200% auto; background-position: ").concat(index * 100, "% 0}");
+  });
+  cssText += "".concat(cssName.slice(0, cssName.length - 1), " {background:url('").concat(canvas.toDataURL(), "') no-repeat} ").concat(cssBgSize);
+};
+
+module.exports = function (arr) {
+  var length = arr.length;
+  var errorLength = 0,
+      loadedLength = 0;
+  arr.forEach(function (item) {
+    image2base(item).then(function (res) {
+      var filename = item.slice(item.lastIndexOf('/') + 1).split('.')[0];
+      loadedLength++;
+      var image = new Image();
+      image.src = res.base64;
+      images.push({
+        image: image,
+        name: filename,
+        width: res.width,
+        height: res.height
+      });
+
+      image.onload = function () {
+        if (loadedLength + errorLength === length) {
+          splitImage();
+        }
+      };
+    })["catch"](function () {
+      errorLength++;
+    });
+  });
+};
+
+/***/ }),
+/* 2 */
+/***/ (function(module, exports) {
+
+module.exports = function (imgSrc) {
+  function getBase64Image(img, width, height) {
+    var canvas = document.createElement('canvas');
+    canvas.width = width || img.width;
+    canvas.height = height || img.height;
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    var dataURL = canvas.toDataURL();
+    return dataURL;
+  }
+
+  var image = new Image();
+  image.crossOrigin = '';
+  image.src = imgSrc;
+  return new Promise(function (resolve, reject) {
+    image.onload = function () {
+      resolve({
+        base64: getBase64Image(image),
+        width: image.width,
+        height: image.height
+      });
+    };
+
+    image.onerror = function () {
+      var error = {
+        e: 'Picture does not exist: ' + imgSrc
+      };
+      consolo.error(error.e);
+      reject(error);
+    };
+  });
+};
 
 /***/ })
-/******/ ]);
+/******/ ])["default"];
+});
