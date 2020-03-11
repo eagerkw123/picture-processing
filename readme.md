@@ -1,8 +1,9 @@
 ## 图片处理插件
-图片处理插件，目前包括一下功能： 图片转css背景，图片转base64
+图片处理插件，目前包括以下功能： 图片转css背景，图片转base64
 
 ### Import
 ```js
+npm i picture-processing -S
 import { image2css, image2base } from 'picture-processing';
 ```
 

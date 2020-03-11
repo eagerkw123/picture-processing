@@ -1,8 +1,9 @@
 ## 图片处理插件
-图片处理插件，目前包括一下功能： 图片转css背景，图片转base64
+图片处理插件，目前包括以下功能： 图片转css背景，图片转base64
 
 ### Import
 ```js
+npm i picture-processing -S
 import { image2css, image2base } from 'picture-processing';
 ```
 
@@ -12,20 +13,20 @@ import { image2css, image2base } from 'picture-processing';
 import { image2css, image2base } from 'picture-processing';
 export default {
   created() {
-  	// 图片转背景 
-  	// 接受参数： 图片url数组
-  	// 生成对应图片名字css类，布局时直接添加图片名称css类即可
-  	// eg： class='${图片名字}'
-  	image2css(['url'])
-  	// 图片转base64
-  	image2css('url').then(res => {
-  		// res返回格式
-  		// {
-  		//		base64: ${base64编码},
-  		//		width: ${图片宽度}
-  		//		height: ${图片高度}
-  		//}
-  	})
+    // 图片转背景 
+    // 接受参数： 图片url数组
+    // 生成对应图片名字css类，布局时直接添加图片名称css类即可
+    // eg： class='${图片名字}'
+    image2css(['url'])
+    // 图片转base64
+    image2css('url').then(res => {
+      // res返回格式
+      // {
+      //    base64: ${base64编码},
+      //    width: ${图片宽度}
+      //    height: ${图片高度}
+      //}
+    })
   }
 }
 ```
