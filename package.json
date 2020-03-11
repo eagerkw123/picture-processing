@@ -1,6 +1,6 @@
 {
   "name": "picture-processing",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "create by kewang",
   "main": "index.js",
   "scripts": {
