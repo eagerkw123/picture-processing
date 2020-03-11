@@ -2,7 +2,6 @@
 	* 雪碧图position定位说明
 **/
 const image2base = require('./image2base')
-const path = require('path')
 
 const width = 400
 const number = 2
