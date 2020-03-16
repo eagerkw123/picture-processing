@@ -5,13 +5,16 @@
 	缩放时 需要保留上一次translate的位置再进行缩放 否则 缩放时定位图片会出现跳动的效果
 **/
 const image2base = require('./image2base')
+const EXIF = require('exif-js')
 
 let W
 let H
-let image // 全貌展示的图片节点
-let cutImage // 被裁剪的图片节点
+let image = new Image() // 全貌展示的图片节点
+let cutImage = new Image() // 被裁剪的图片节点
 let scale = 1 // 图片缩放的比例
 let minScale = 0.5
+let orientation = 1
+let limit = 500
 const maxScale = 2
 let imgSrc // 裁剪图片url
 let cutWidth // 裁剪框宽度
@@ -204,6 +207,108 @@ const close = () => {
 	document.body.removeChild(box)
 }
 
+// 转向
+const rotateImg = (img, direction, canvas) => {
+	// 最小与最大旋转方向，图片旋转4次后回到原方向
+	const min_step = 0
+	const max_step = 3
+	if (!img) return
+	// img的高度和宽度不能在img元素隐藏后获取，否则会出错
+	const height = img.height
+	const width = img.width
+	let step = 2
+	if (step == null) {
+		step = min_step
+	}
+	if (direction === 'right') {
+		step++
+		// 旋转到原位置，即超过最大值
+		step > max_step && (step = min_step)
+	} else {
+		step--
+		step < min_step && (step = max_step)
+	}
+	// 旋转角度以弧度值为参数
+	const degree = step * 90 * Math.PI / 180
+	const ctx = canvas.getContext('2d')
+	switch (step) {
+		case 0:
+			canvas.width = width
+			canvas.height = height
+			ctx.drawImage(img, 0, 0)
+		break
+		case 1:
+			canvas.width = height
+			canvas.height = width
+			ctx.rotate(degree)
+			ctx.drawImage(img, 0, -height)
+		break
+		case 2:
+			canvas.width = width
+			canvas.height = height
+			ctx.rotate(degree)
+			ctx.drawImage(img, -width, -height)
+		break
+		case 3:
+			canvas.width = height
+			canvas.height = width
+			ctx.rotate(degree)
+			ctx.drawImage(img, -width, 0)
+		break
+	}
+}
+      // 根据上传图片方向来裁剪转向图片
+const compress = (img, Orientation) => {
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    let width = img.width
+    let height = img.height
+    const scale = width / height
+    width = width > 1000 ? 1000 : width
+    height = width / scale
+    canvas.width = width
+    canvas.height = height
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.drawImage(img, 0, 0, width, height)
+    // 修复ios上传图片的时候 被旋转的问题
+    if (Orientation !== '' && Orientation !== 1) {
+      switch (Orientation) {
+        case 6:// 需要顺时针（向左）90度旋转
+        	rotateImg(img, 'left', canvas)
+        	break
+        case 8:// 需要逆时针（向右）90度旋转
+        	rotateImg(img, 'right', canvas)
+        	break
+        case 3:// 需要180度旋转
+        	rotateImg(img, 'right', canvas)// 转两次
+        	rotateImg(img, 'right', canvas)
+        	break
+      }
+    }
+    // 进行最小压缩
+    const ndata = canvas.toDataURL('image/jpeg')
+    return ndata
+}
+
+const showSize = (base64url) => {
+	var str = base64url.replace('data:image/png;base64,', '')
+	var equalIndex = str.indexOf('=')
+	if (str.indexOf(' = ') > 0) {
+		str = str.substring(0, equalIndex)
+	}
+	var strLength = str.length
+	var fileLength = parseInt(strLength - (strLength / 8) * 2)
+	var size = (fileLength / 1024).toFixed(2)
+	var sizeStr = size + ''
+	var index = sizeStr.indexOf('.')
+	var dou = sizeStr.substr(index + 1, 2)
+	if (dou === '00') {
+		return sizeStr.substring(0, index) + sizeStr.substr(index + 3, 2)
+	}
+	return size
+}
+
 const cut = (fn) => {
 	const copy = document.createElement('canvas')
 	copy.width = W
@@ -222,6 +327,13 @@ const cut = (fn) => {
 		const ctx = canvas.getContext('2d')
 		ctx.drawImage(copyImage, left, top, cutWidth, cutHeight, 0, 0, cutWidth, cutHeight)
 		let src = canvas.toDataURL('image/jpeg', 0.8)
+		let size = showSize(src)
+        let xs = 0
+        while (size > limit) {
+        	xs += 5
+            src = canvas.toDataURL('image/jpeg', (80 - xs) / 100)
+            size = showSize(src)
+        }
 		close()
 		fn && fn(src)
 	}
@@ -281,36 +393,51 @@ module.exports = (params) => {
 	W = window.innerWidth
 	H = window.innerHeight
 	imgSrc = paramsType === 'string' ? params : params.url
+	limit = paramsType === 'string' ? limit : (params.limit || limit)
 	cutWidth = paramsType === 'string' ? W / 2 : (params.width || W / 2)
 	cutWidth = Math.min(W, parseInt(cutWidth))
 	cutHeight = paramsType === 'string' ? cutWidth : (params.height || cutWidth)
 	cutHeight = Math.min(window.innerHeight, parseInt(cutHeight))
 	cutPart.style.cssText = `width: ${cutWidth}px;height: ${cutHeight}px;`
+	image.src = imgSrc
 	// 创建弹窗
 	createBox()
+	addListener(box, 'touchmove')
 	return new Promise((resolve, reject) => {
-		image2base(imgSrc).then(res => {
-			imgSrc = res.base64
-			image = new Image()
-			image.src = imgSrc
-			cutImage = new Image()
-			cutImage.src = imgSrc
-			image.onload = () => {
-				init((src) => {
-					if (src) {
-						resolve(src)
-					} else {
-						reject({
-							error: '用户取消了操作'
-						})
-					}
-				})
-			}
-		}).catch(e => {
-			reject({
-				error: '图片加载失败，请确认图片路径是否正确'
+		const error = '图片加载失败，请确认图片路径是否正确'
+		image.onload = () => {
+			EXIF.getData(image, function(){
+				orientation = EXIF.getTag(this, 'Orientation') || 1
 			})
-		})
-		addListener(box, 'touchmove')
+			if (orientation !== 1) {
+				imgUrl = compress(image, orientation)
+			}
+			image2base(imgSrc).then(res => {
+				imgSrc = res.base64
+				image.src = imgSrc
+				cutImage = new Image()
+				cutImage.src = imgSrc
+				image.onload = () => {
+					init((src) => {
+						if (src) {
+							resolve(src)
+						} else {
+							reject({
+								error: '用户取消了操作'
+							})
+						}
+					})
+				}
+			}).catch(e => {
+				reject({
+					error
+				})
+			})
+		}
+		image.onerror = () => {
+			reject({
+				error
+			})
+		}
 	})
 }
