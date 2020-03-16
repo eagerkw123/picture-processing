@@ -246,17 +246,19 @@ function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "functi
 **/
 var image2base = __webpack_require__(2);
 
-var exifJs = __webpack_require__(4);
+var EXIF = __webpack_require__(4);
 
 var W;
 var H;
-var image; // 全貌展示的图片节点
+var image = new Image(); // 全貌展示的图片节点
 
-var cutImage; // 被裁剪的图片节点
+var cutImage = new Image(); // 被裁剪的图片节点
 
 var scale = 1; // 图片缩放的比例
 
 var minScale = 0.5;
+var orientation = 1;
+var limit = 500;
 var maxScale = 2;
 var imgSrc; // 裁剪图片url
 
@@ -464,6 +466,127 @@ var scaleTouchEnd = function scaleTouchEnd() {
 var close = function close() {
   document.head.removeChild(style);
   document.body.removeChild(box);
+}; // 转向
+
+
+var rotateImg = function rotateImg(img, direction, canvas) {
+  // 最小与最大旋转方向，图片旋转4次后回到原方向
+  var min_step = 0;
+  var max_step = 3;
+  if (!img) return; // img的高度和宽度不能在img元素隐藏后获取，否则会出错
+
+  var height = img.height;
+  var width = img.width;
+  var step = 2;
+
+  if (step == null) {
+    step = min_step;
+  }
+
+  if (direction === 'right') {
+    step++; // 旋转到原位置，即超过最大值
+
+    step > max_step && (step = min_step);
+  } else {
+    step--;
+    step < min_step && (step = max_step);
+  } // 旋转角度以弧度值为参数
+
+
+  var degree = step * 90 * Math.PI / 180;
+  var ctx = canvas.getContext('2d');
+
+  switch (step) {
+    case 0:
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(img, 0, 0);
+      break;
+
+    case 1:
+      canvas.width = height;
+      canvas.height = width;
+      ctx.rotate(degree);
+      ctx.drawImage(img, 0, -height);
+      break;
+
+    case 2:
+      canvas.width = width;
+      canvas.height = height;
+      ctx.rotate(degree);
+      ctx.drawImage(img, -width, -height);
+      break;
+
+    case 3:
+      canvas.width = height;
+      canvas.height = width;
+      ctx.rotate(degree);
+      ctx.drawImage(img, -width, 0);
+      break;
+  }
+}; // 根据上传图片方向来裁剪转向图片
+
+
+var compress = function compress(img, Orientation) {
+  var canvas = document.createElement('canvas');
+  var ctx = canvas.getContext('2d');
+  var width = img.width;
+  var height = img.height;
+  var scale = width / height;
+  width = width > 1000 ? 1000 : width;
+  height = width / scale;
+  canvas.width = width;
+  canvas.height = height;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, width, height); // 修复ios上传图片的时候 被旋转的问题
+
+  if (Orientation !== '' && Orientation !== 1) {
+    switch (Orientation) {
+      case 6:
+        // 需要顺时针（向左）90度旋转
+        rotateImg(img, 'left', canvas);
+        break;
+
+      case 8:
+        // 需要逆时针（向右）90度旋转
+        rotateImg(img, 'right', canvas);
+        break;
+
+      case 3:
+        // 需要180度旋转
+        rotateImg(img, 'right', canvas); // 转两次
+
+        rotateImg(img, 'right', canvas);
+        break;
+    }
+  } // 进行最小压缩
+
+
+  var ndata = canvas.toDataURL('image/jpeg');
+  return ndata;
+};
+
+var showSize = function showSize(base64url) {
+  var str = base64url.replace('data:image/png;base64,', '');
+  var equalIndex = str.indexOf('=');
+
+  if (str.indexOf(' = ') > 0) {
+    str = str.substring(0, equalIndex);
+  }
+
+  var strLength = str.length;
+  var fileLength = parseInt(strLength - strLength / 8 * 2);
+  var size = (fileLength / 1024).toFixed(2);
+  var sizeStr = size + '';
+  var index = sizeStr.indexOf('.');
+  var dou = sizeStr.substr(index + 1, 2);
+
+  if (dou === '00') {
+    return sizeStr.substring(0, index) + sizeStr.substr(index + 3, 2);
+  }
+
+  return size;
 };
 
 var cut = function cut(fn) {
@@ -485,6 +608,15 @@ var cut = function cut(fn) {
     var ctx = canvas.getContext('2d');
     ctx.drawImage(copyImage, left, top, cutWidth, cutHeight, 0, 0, cutWidth, cutHeight);
     var src = canvas.toDataURL('image/jpeg', 0.8);
+    var size = showSize(src);
+    var xs = 0;
+
+    while (size > limit) {
+      xs += 5;
+      src = canvas.toDataURL('image/jpeg', (80 - xs) / 100);
+      size = showSize(src);
+    }
+
     close();
     fn && fn(src);
   };
@@ -543,44 +675,57 @@ module.exports = function (params) {
   W = window.innerWidth;
   H = window.innerHeight;
   imgSrc = paramsType === 'string' ? params : params.url;
+  limit = paramsType === 'string' ? limit : params.limit || limit;
   cutWidth = paramsType === 'string' ? W / 2 : params.width || W / 2;
   cutWidth = Math.min(W, parseInt(cutWidth));
   cutHeight = paramsType === 'string' ? cutWidth : params.height || cutWidth;
   cutHeight = Math.min(window.innerHeight, parseInt(cutHeight));
   cutPart.style.cssText = "width: ".concat(cutWidth, "px;height: ").concat(cutHeight, "px;");
-  var exifImage = new Image();
-  exifImage.src = imgSrc;
-  EXIF.getData(exifImage, function () {
-    console.log(EXIF.getAllTags(this));
-    EXIF.getTag(this, 'Orientation');
-  }); // 创建弹窗
+  image.src = imgSrc; // 创建弹窗
 
   createBox();
+  addListener(box, 'touchmove');
   return new Promise(function (resolve, reject) {
-    image2base(imgSrc).then(function (res) {
-      imgSrc = res.base64;
-      image = new Image();
-      image.src = imgSrc;
-      cutImage = new Image();
-      cutImage.src = imgSrc;
+    var error = '图片加载失败，请确认图片路径是否正确';
 
-      image.onload = function () {
-        init(function (src) {
-          if (src) {
-            resolve(src);
-          } else {
-            reject({
-              error: '用户取消了操作'
-            });
-          }
-        });
-      };
-    })["catch"](function (e) {
-      reject({
-        error: '图片加载失败，请确认图片路径是否正确'
+    image.onload = function () {
+      EXIF.getData(image, function () {
+        orientation = EXIF.getTag(this, 'Orientation') || 1;
       });
-    });
-    addListener(box, 'touchmove');
+
+      if (orientation !== 1) {
+        imgUrl = compress(image, orientation);
+      }
+
+      image2base(imgSrc).then(function (res) {
+        imgSrc = res.base64;
+        image.src = imgSrc;
+        cutImage = new Image();
+        cutImage.src = imgSrc;
+
+        image.onload = function () {
+          init(function (src) {
+            if (src) {
+              resolve(src);
+            } else {
+              reject({
+                error: '用户取消了操作'
+              });
+            }
+          });
+        };
+      })["catch"](function (e) {
+        reject({
+          error: error
+        });
+      });
+    };
+
+    image.onerror = function () {
+      reject({
+        error: error
+      });
+    };
   });
 };
 
