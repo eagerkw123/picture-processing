@@ -4,6 +4,7 @@
 	所以每次拖动 再鼠标按下时需要把上一次设置的translate3d清空 否则按下的时候图片会发生偏差 会出现跳动的效果
 	缩放时 需要保留上一次translate的位置再进行缩放 否则 缩放时定位图片会出现跳动的效果
 **/
+const loading = require('./image2loading')
 const image2base = require('./image2base')
 const EXIF = require('exif-js')
 
@@ -40,7 +41,6 @@ const style = document.createElement('style')
 const box = document.createElement('section')
 const cutBox = document.createElement('div')
 const cutPart = document.createElement('p')
-const loading = document.createElement('ul')
 const scaleBox = document.createElement('ul')
 const cutDoBox = document.createElement('ul')
 const scaleBtnWidth = 30 // 缩放按钮宽度
@@ -57,11 +57,6 @@ const createBox = () => {
 	.${clName}::after {content: '';display: block;z-index:${zIndex + 2};${fixed}background: rgba(0, 0, 0, 0.6)}
 	.${clName} div {z-index:${zIndex + 3};${fixed}}
 	.${clName} div p {position: absolute;left: 50%;top: 50%;transform: translate3d(-50%, -50%, 0);overflow: hidden;background: #000}
-	.${clName} .cut-2-loading {position: absolute;z-index:${zIndex + 5}; left: 50%;top: 50%;transform: translate3d(-50%, -50%, 0);height: 30px}
-	.${clName} .cut-2-loading li {display: inline-block; width: 10px;height: 10px;margin-right: 6px;border-radius: 50%;background: #fff;animation: cut_2_li 1s 0s infinite}
-	.${clName} .cut-2-loading li:nth-child(2) {animation: cut_2_li 1s 0.2s infinite}
-	.${clName} .cut-2-loading li:nth-child(3) {animation: cut_2_li 1s 0.4s infinite}
-	.${clName} .cut-2-loading li:nth-child(4) {animation: cut_2_li 1s 0.6s infinite}
 	.${clName} .cut-2-do {position: absolute;left: 0;width: 100%;bottom: 3%;text-align:center;height: 36px; line-height: 36px;font-size: 14px}
 	.${clName} .cut-2-do li:last-child{background: #999; color: #666}
 	.${clName} .cut-2-do li {background: #fff;width: 120px;display: inline-block;margin: 0 8px;border-radius: 10px;color: #333}
@@ -70,7 +65,6 @@ const createBox = () => {
 	.${clName} .cut-2-scale li:nth-child(2) {width: 60%;margin: 0 5%;height: 10px;background: #ccc;border-radius: 20px;transform: translate3d(0, -4px, 0)}
 	.${clName} .cut-2-scale li:nth-child(2) p {position: absolute;width: 100%;left: 0;top: 0;width: 0;background: #fff;height: 100%;border-radius: 20px}
 	.${clName} .cut-2-scale li:nth-child(2) b {position: absolute;width: ${scaleBtnWidth}px;height: ${scaleBtnWidth}px;border-radius: 50%;left: 0;top: -10px;display: block;background: #999}
-	@-webkit-keyframes cut_2_li {0%, 100% {transform: translate3d(0, -100%, 0);opacity: 0} 30% {transform: translate3d(0, 0, 0);opacity: 1} 60% {transform: translate3d(0, 100%, 0);opacity: 0}}
 	`
 	box.className = 'image-2-cut-fixed ' + clName
 	document.body.appendChild(box)
@@ -82,10 +76,7 @@ const createBox = () => {
 	scaleBox.innerHTML = '<li>-</li><li><p></p><b></b></li><li>+</li>'
 	cutDoBox.className = 'cut-2-do'
 	cutDoBox.innerHTML = '<li>确定</li><li>取消</li>'
-	loading.className = 'cut-2-loading'
-	loading.innerHTML = '<li></li><li></li><li></li><li></li>'
 	cutPart.style.opacity = 0
-	box.appendChild(loading)
 	document.head.appendChild(style)
 }
 
@@ -157,9 +148,9 @@ const touchMove = (ev) => {
     // 裁剪框的边框能超出图片的边框 确保图片边框与裁剪框边框能够重合
     // 注意裁剪框的宽高 和裁剪框距离屏幕的边距 和 图片距离屏幕的边距
     left = left >= (cutToPrintDisX - nowMargin[3]) ? (cutToPrintDisX - nowMargin[3]) : left
-    left = left <= -(W + nowMargin[3] - cutWidth - cutToPrintDisX) / 2 ? -(W + nowMargin[3] - cutWidth - cutToPrintDisX) : left
+    left = left <= -(W + nowMargin[3] - cutWidth - cutToPrintDisX) / 2 ? -(W + nowMargin[3] - cutWidth - cutToPrintDisX) / 2 : left
     top = top >= (cutToPrintDisY - nowMargin[0]) ? (cutToPrintDisY - nowMargin[0]) : top
-    top = top <= -(H + nowMargin[0] - cutHeight - cutToPrintDisY) / 2 ? -(H + nowMargin[0] - cutHeight - cutToPrintDisY) : top
+    top = top <= -(H + nowMargin[0] - cutHeight - cutToPrintDisY) / 2 ? -(H + nowMargin[0] - cutHeight - cutToPrintDisY) / 2 : top
     moveLeft = left
     moveTop = top
     picCssAll = `-webkit-transform:translate3d(${left}px,${top}px,0);${picCss}`
@@ -375,7 +366,6 @@ const init = (fn) => {
 	addListener(scaleBtn, 'touchend', scaleTouchEnd)
 	scaleBtn.style.left = defaultWidth + 'px'
 	scaleBtn.parentNode.children[0].style.width = defaultWidth + 'px'
-	box.removeChild(loading)
 	cutPart.style.opacity = 1
 
 	//裁剪和取消
@@ -403,6 +393,7 @@ module.exports = (params) => {
 	// 创建弹窗
 	createBox()
 	addListener(box, 'touchmove')
+	loading.show()
 	return new Promise((resolve, reject) => {
 		const error = '图片加载失败，请确认图片路径是否正确'
 		image.onload = () => {
@@ -433,11 +424,13 @@ module.exports = (params) => {
 					error
 				})
 			})
+			loading.hide()
 		}
 		image.onerror = () => {
 			reject({
 				error
 			})
+			loading.hide()
 		}
 	})
 }

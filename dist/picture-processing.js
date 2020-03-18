@@ -106,10 +106,13 @@ var image2base = __webpack_require__(2);
 
 var image2cut = __webpack_require__(3);
 
+var image2upload = __webpack_require__(5);
+
 /* harmony default export */ __webpack_exports__["default"] = ({
   image2css: image2css,
   image2base: image2base,
-  image2cut: image2cut
+  image2cut: image2cut,
+  image2upload: image2upload
 });
 
 /***/ }),
@@ -199,14 +202,18 @@ module.exports = function (arr) {
 /* 2 */
 /***/ (function(module, exports) {
 
-module.exports = function (imgSrc) {
+module.exports = function (imgSrc, type) {
+  var isSupport = ['jpeg', 'png', 'webp'].find(function (item) {
+    return item === type;
+  });
+
   function getBase64Image(img, width, height) {
     var canvas = document.createElement('canvas');
     canvas.width = width || img.width;
     canvas.height = height || img.height;
     var ctx = canvas.getContext('2d');
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    var dataURL = canvas.toDataURL();
+    var dataURL = canvas.toDataURL("image/".concat(isSupport || 'jpeg'));
     return dataURL;
   }
 
@@ -414,9 +421,10 @@ var touchMove = function touchMove(ev) {
   // 注意裁剪框的宽高 和裁剪框距离屏幕的边距 和 图片距离屏幕的边距
 
   left = left >= cutToPrintDisX - nowMargin[3] ? cutToPrintDisX - nowMargin[3] : left;
-  left = left <= -(W + nowMargin[3] - cutWidth - cutToPrintDisX) / 2 ? -(W + nowMargin[3] - cutWidth - cutToPrintDisX) : left;
+  left = left <= -(W + nowMargin[3] - cutWidth - cutToPrintDisX) / 2 ? -(W + nowMargin[3] - cutWidth - cutToPrintDisX) / 2 : left;
   top = top >= cutToPrintDisY - nowMargin[0] ? cutToPrintDisY - nowMargin[0] : top;
-  top = top <= -(H + nowMargin[0] - cutHeight - cutToPrintDisY) / 2 ? -(H + nowMargin[0] - cutHeight - cutToPrintDisY) : top;
+  top = top <= -(H + nowMargin[0] - cutHeight - cutToPrintDisY) / 2 ? -(H + nowMargin[0] - cutHeight - cutToPrintDisY) / 2 : top;
+  document.title = left;
   moveLeft = left;
   moveTop = top;
   picCssAll = "-webkit-transform:translate3d(".concat(left, "px,").concat(top, "px,0);").concat(picCss);
@@ -1844,6 +1852,293 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;(function () {
 				__WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
   }
 }).call(this);
+
+/***/ }),
+/* 5 */
+/***/ (function(module, exports, __webpack_require__) {
+
+function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
+
+var http = __webpack_require__(6);
+
+var fileType = 'jpeg';
+
+var _success = function success() {};
+
+var faile = function faile() {};
+
+var src = '';
+var fileDir = 'common';
+var fileUploadAuth = 'https://third-api.wyins.net/oss/getAuthInfo';
+var aliyuncs = 'https://winbrokers.oss-cn-hangzhou.aliyuncs.com';
+var uploadParams = ''; // base64转blob
+
+var base64ToBlob = function base64ToBlob(str) {
+  var arr = str.split(',');
+  var mime = arr[0].match(/:(.*?);/)[1];
+  var bstr = atob(arr[1]);
+  var n = bstr.length;
+  var u8arr = new Uint8Array(n);
+
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+
+  return new Blob([u8arr], {
+    type: mime
+  });
+};
+
+var chunk = function chunk() {
+  return 'abcdefghjiklmnopqrstuvwxyz'.charAt(parseInt(Math.random() * 26)) + Date.now().toString() + 'abcdefghjiklmnopqrstuvwxyz'.charAt(parseInt(Math.random() * 26));
+};
+
+var upload = function upload(params) {
+  if (!params || !params.url) {
+    console.error('请选择您要上传的base64图片源码');
+
+    if (params && typeof params.fail === 'function') {
+      params.fail(0);
+    }
+
+    return;
+  }
+
+  src = params.url;
+  fileDir = params.dir || fileDir;
+  fileType = params.fileType || fileType;
+  _success = typeof params.success === 'function' ? params.success : _success;
+  fail = typeof params.fail === 'function' ? params.fail : fail;
+
+  if (_typeof(uploadParams) !== 'object') {
+    return;
+  } else if (!uploadParams) {
+    fail(1);
+    return;
+  }
+
+  var blob = base64ToBlob(src);
+  var fileName = uploadParams.expire + '_' + chunk();
+
+  var _formData = new FormData();
+
+  _formData.append('success_action_status', 200);
+
+  _formData.append('signature', uploadParams.signature);
+
+  _formData.append('policy', uploadParams.policy);
+
+  _formData.append('OSSAccessKeyId', uploadParams.accessid);
+
+  _formData.append('key', uploadParams.dir + fileName + '.' + fileType);
+
+  _formData.append('file', blob);
+
+  http.ajax({
+    url: aliyuncs,
+    type: 'POST',
+    data: _formData,
+    success: function success() {
+      var src = 'https:' + uploadParams.cdnMediaHost + uploadParams.dir + fileName + '.' + fileType;
+      var img = document.createElement('img');
+      img.src = src + '?x-oss-process=image/crop,x_0,y_0,w_10,h_10,g_se';
+      img.style.cssText = 'position:absolute;left:100%;width:1px;top:100%';
+      document.body.appendChild(img);
+
+      img.onload = function () {
+        // document.body.removeChild(img)
+        _success(src);
+      };
+    },
+    error: function error() {
+      fail(2);
+    }
+  });
+};
+
+module.exports = {
+  init: function init() {
+    http.ajax({
+      url: fileUploadAuth,
+      data: {
+        fileDir: fileDir
+      },
+      success: function success(res) {
+        uploadParams = null;
+
+        if (res && res.data) {
+          uploadParams = res.data;
+        }
+      },
+      error: function error() {
+        fail(1);
+      }
+    });
+  },
+  upload: upload
+};
+
+/***/ }),
+/* 6 */
+/***/ (function(module, exports) {
+
+var http = {
+  /**
+  * js封装ajax请求
+  * >>使用new XMLHttpRequest 创建请求对象,所以不考虑低端IE浏览器(IE6及以下不支持XMLHttpRequest)
+  * >>使用es6语法,如果需要在正式环境使用,则可以用babel转换为es5语法 https://babeljs.cn/docs/setup/#installation
+  *  @param settings 请求参数模仿jQuery ajax
+  *  调用该方法,data参数需要和请求头Content-Type对应
+  *  Content-Type                        data                                     描述
+  *  application/x-www-form-urlencoded   'name=哈哈&age=12'或{name:'哈哈',age:12}  查询字符串,用&分割
+  *  application/json                     name=哈哈&age=12'                        json字符串
+  *  multipart/form-data                  new FormData()                           FormData对象,当为FormData类型,不要手动设置Content-Type
+  *  注意:请求参数如果包含日期类型.是否能请求成功需要后台接口配合
+  */
+  ajax: function ajax() {
+    var settings = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+
+    // 初始化请求参数
+    var _s = Object.assign({
+      url: '',
+      // string
+      type: 'GET',
+      // string 'GET' 'POST' 'DELETE'
+      dataType: 'json',
+      // string 期望的返回数据类型:'json' 'text' 'document' ...
+      async: true,
+      //  boolean true:异步请求 false:同步请求 required
+      data: null,
+      // any 请求参数,data需要和请求头Content-Type对应
+      headers: {},
+      // object 请求头
+      timeout: 3000,
+      // string 超时时间:0表示不设置超时
+      beforeSend: function beforeSend(xhr) {},
+      success: function success(result, status, xhr) {},
+      error: function error(xhr, status, _error) {},
+      complete: function complete(xhr, status) {}
+    }, settings); // 参数验证
+
+
+    if (!_s.url || !_s.type || !_s.dataType || !_s.async) {
+      console.error('参数有误');
+      return;
+    } // 创建XMLHttpRequest请求对象
+
+
+    var xhr = new XMLHttpRequest(); // 请求开始回调函数
+
+    xhr.addEventListener('loadstart', function (e) {
+      _s.beforeSend(xhr);
+    }); // 请求成功回调函数
+
+    xhr.addEventListener('load', function (e) {
+      var status = xhr.status;
+
+      if (status >= 200 && status < 300 || status === 304) {
+        var result;
+
+        if (xhr.responseType === 'text') {
+          result = xhr.responseText;
+        } else if (xhr.responseType === 'document') {
+          result = xhr.responseXML;
+        } else {
+          result = xhr.response;
+        } // 注意:状态码200表示请求发送/接受成功,不表示业务处理成功
+
+
+        _s.success(result, status, xhr);
+      } else {
+        _s.error(xhr, status, e);
+      }
+    }); // 请求结束
+
+    xhr.addEventListener('loadend', function (e) {
+      _s.complete(xhr, xhr.status);
+    }); // 请求出错
+
+    xhr.addEventListener('error', function (e) {
+      _s.error(xhr, xhr.status, e);
+    }); // 请求超时
+
+    xhr.addEventListener('timeout', function (e) {
+      _s.error(xhr, 408, e);
+    });
+    var useUrlParam = false;
+
+    var sType = _s.type.toUpperCase(); // 如果是"简单"请求,则把data参数组装在url上
+
+
+    if (sType === 'GET' || sType === 'DELETE') {
+      useUrlParam = true;
+      _s.url += http.getUrlParam(_s.url, _s.data);
+    } // 初始化请求
+
+
+    xhr.open(_s.type, _s.url, _s.async); // 设置期望的返回数据类型
+
+    xhr.responseType = _s.dataType; // 设置请求头
+
+    for (var _i = 0, _Object$keys = Object.keys(_s.headers); _i < _Object$keys.length; _i++) {
+      var key = _Object$keys[_i];
+      xhr.setRequestHeader(key, _s.headers[key]);
+    } // 设置超时时间
+
+
+    if (_s.async && _s.timeout) {
+      xhr.timeout = _s.timeout;
+    } // 发送请求.如果是简单请求,请求参数应为null.否则,请求参数类型需要和请求头Content-Type对应
+
+
+    xhr.send(useUrlParam ? null : http.getQueryData(_s.data));
+  },
+  // 把参数data转为url查询参数
+  getUrlParam: function getUrlParam(url, data) {
+    if (!data) {
+      return '';
+    }
+
+    var paramsStr = data instanceof Object ? http.getQueryString(data) : data;
+    return url.indexOf('?') !== -1 ? paramsStr : '?' + paramsStr;
+  },
+  // 获取ajax请求参数
+  getQueryData: function getQueryData(data) {
+    if (!data) {
+      return null;
+    }
+
+    if (typeof data === 'string') {
+      return data;
+    }
+
+    console.log(data instanceof FormData);
+
+    if (data instanceof FormData) {
+      return data;
+    }
+
+    return http.getQueryString(data);
+  },
+  // 把对象转为查询字符串
+  getQueryString: function getQueryString(data) {
+    var paramsArr = [];
+
+    if (data instanceof Object) {
+      Object.keys(data).forEach(function (key) {
+        var val = data[key]; // todo 参数Date类型需要根据后台api酌情处理
+
+        if (val instanceof Date) {// val = dateFormat(val, 'yyyy-MM-dd hh:mm:ss');
+        }
+
+        paramsArr.push(encodeURIComponent(key) + '=' + encodeURIComponent(val));
+      });
+    }
+
+    return paramsArr.join('&');
+  }
+};
+module.exports = http;
 
 /***/ })
 /******/ ])["default"];
