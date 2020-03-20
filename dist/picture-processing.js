@@ -104,15 +104,18 @@ var image2css = __webpack_require__(1);
 
 var image2base = __webpack_require__(2);
 
-var image2cut = __webpack_require__(3);
+var image2cut = __webpack_require__(6);
 
-var image2upload = __webpack_require__(5);
+var image2upload = __webpack_require__(3);
+
+var image2loading = __webpack_require__(5);
 
 /* harmony default export */ __webpack_exports__["default"] = ({
   image2css: image2css,
   image2base: image2base,
   image2cut: image2cut,
-  image2upload: image2upload
+  image2upload: image2upload,
+  image2loading: image2loading
 });
 
 /***/ }),
@@ -200,12 +203,19 @@ module.exports = function (arr) {
 
 /***/ }),
 /* 2 */
-/***/ (function(module, exports) {
+/***/ (function(module, exports, __webpack_require__) {
 
-module.exports = function (imgSrc, type) {
+var image2upload = __webpack_require__(3);
+
+module.exports = function (params) {
+  var tp = typeof params === 'string';
+  var type = tp ? 'jpeg' : params.type;
+  var imgSrc = tp ? params : params.url;
+  var upload = tp ? false : params.upload;
   var isSupport = ['jpeg', 'png', 'webp'].find(function (item) {
     return item === type;
   });
+  type = isSupport || 'jpeg';
 
   function getBase64Image(img, width, height) {
     var canvas = document.createElement('canvas');
@@ -213,7 +223,7 @@ module.exports = function (imgSrc, type) {
     canvas.height = height || img.height;
     var ctx = canvas.getContext('2d');
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    var dataURL = canvas.toDataURL("image/".concat(isSupport || 'jpeg'));
+    var dataURL = canvas.toDataURL("image/".concat(type));
     return dataURL;
   }
 
@@ -221,20 +231,42 @@ module.exports = function (imgSrc, type) {
   image.crossOrigin = '';
   image.src = imgSrc;
   return new Promise(function (resolve, reject) {
-    image.onload = function () {
-      resolve({
-        base64: getBase64Image(image),
-        width: image.width,
-        height: image.height
-      });
-    };
-
     image.onerror = function () {
       var error = {
         e: 'Picture does not exist: ' + imgSrc
       };
       consolo.error(error.e);
       reject(error);
+    };
+
+    image.onload = function () {
+      if (upload) {
+        image2upload.init();
+        image2upload.send({
+          url: getBase64Image(image),
+          fileType: type,
+          success: function success(src) {
+            resolve({
+              src: src,
+              base64: getBase64Image(image),
+              width: image.width,
+              height: image.height
+            });
+          },
+          fail: function fail(code) {
+            reject({
+              code: code
+            });
+          }
+        });
+        return;
+      }
+
+      resolve({
+        base64: getBase64Image(image),
+        width: image.width,
+        height: image.height
+      });
     };
   });
 };
@@ -245,15 +277,363 @@ module.exports = function (imgSrc, type) {
 
 function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
 
+var http = __webpack_require__(4);
+
+var loading = __webpack_require__(5);
+
+var fileType = 'jpeg';
+
+var success = function success() {};
+
+var faile = function faile() {};
+
+var url = '';
+var fileDir = 'common';
+var fileUploadAuth = 'https://third-api.wyins.net/oss/getAuthInfo';
+var aliyuncs = 'https://winbrokers.oss-cn-hangzhou.aliyuncs.com';
+var uploadParams = '';
+var parmas = {};
+var pending = false; // base64转blob
+
+var base64ToBlob = function base64ToBlob(str) {
+  var arr = str.split(',');
+  var mime = arr[0].match(/:(.*?);/)[1];
+  var bstr = atob(arr[1]);
+  var n = bstr.length;
+  var u8arr = new Uint8Array(n);
+
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+
+  return new Blob([u8arr], {
+    type: mime
+  });
+};
+
+var chunk = function chunk() {
+  return 'abcdefghjiklmnopqrstuvwxyz'.charAt(parseInt(Math.random() * 26)) + Date.now().toString() + 'abcdefghjiklmnopqrstuvwxyz'.charAt(parseInt(Math.random() * 26));
+};
+
+var loadImage = function loadImage(src) {
+  var image = new Image();
+  image.src = src + '?x-oss-process=image/crop,x_0,y_0,w_1,h_1,g_se';
+
+  image.onload = function () {
+    success(src);
+    loading.hide();
+  };
+
+  image.error = function () {
+    fail(2);
+    loading.hide();
+  };
+};
+
+var upload = function upload() {
+  var blob = base64ToBlob(url);
+  var fileName = uploadParams.expire + '_' + chunk();
+
+  var _formData = new FormData();
+
+  _formData.append('success_action_status', 200);
+
+  _formData.append('signature', uploadParams.signature);
+
+  _formData.append('policy', uploadParams.policy);
+
+  _formData.append('OSSAccessKeyId', uploadParams.accessid);
+
+  _formData.append('key', uploadParams.dir + fileName + '.' + fileType);
+
+  _formData.append('file', blob);
+
+  var result = 'https:' + uploadParams.cdnMediaHost + uploadParams.dir + fileName + '.' + fileType;
+  http.ajax({
+    url: aliyuncs,
+    type: 'POST',
+    data: _formData,
+    success: function success() {
+      loadImage(result);
+    },
+    error: function error() {
+      loadImage(result);
+    }
+  });
+};
+
+module.exports = {
+  init: function init() {
+    http.ajax({
+      url: fileUploadAuth,
+      data: {
+        fileDir: fileDir
+      },
+      success: function success(res) {
+        uploadParams = null;
+
+        if (res && res.data) {
+          uploadParams = res.data;
+        }
+
+        console.log(pending);
+
+        if (pending) {
+          upload();
+          pending = false;
+        }
+      },
+      error: function error() {
+        uploadParams = null;
+        fail(1);
+      }
+    });
+  },
+  send: function send(params) {
+    if (!params || !params.url || params.url.indexOf('base64') < 0) {
+      console.error('请选择您要上传的base64图片源码');
+
+      if (params && typeof params.fail === 'function') {
+        params.fail(0);
+      }
+
+      return;
+    }
+
+    loading.show();
+    url = params.url;
+    fileDir = params.dir || fileDir;
+    fileType = params.fileType || fileType;
+    success = typeof params.success === 'function' ? params.success : success;
+    fail = typeof params.fail === 'function' ? params.fail : fail;
+
+    if (_typeof(uploadParams) !== 'object') {
+      pending = true;
+      return;
+    } else if (!uploadParams) {
+      fail(1);
+      return;
+    }
+
+    upload();
+  }
+};
+
+/***/ }),
+/* 4 */
+/***/ (function(module, exports) {
+
+var http = {
+  /**
+  * js封装ajax请求
+  * >>使用new XMLHttpRequest 创建请求对象,所以不考虑低端IE浏览器(IE6及以下不支持XMLHttpRequest)
+  * >>使用es6语法,如果需要在正式环境使用,则可以用babel转换为es5语法 https://babeljs.cn/docs/setup/#installation
+  *  @param settings 请求参数模仿jQuery ajax
+  *  调用该方法,data参数需要和请求头Content-Type对应
+  *  Content-Type                        data                                     描述
+  *  application/x-www-form-urlencoded   'name=哈哈&age=12'或{name:'哈哈',age:12}  查询字符串,用&分割
+  *  application/json                     name=哈哈&age=12'                        json字符串
+  *  multipart/form-data                  new FormData()                           FormData对象,当为FormData类型,不要手动设置Content-Type
+  *  注意:请求参数如果包含日期类型.是否能请求成功需要后台接口配合
+  */
+  ajax: function ajax() {
+    var settings = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+
+    // 初始化请求参数
+    var _s = Object.assign({
+      url: '',
+      // string
+      type: 'GET',
+      // string 'GET' 'POST' 'DELETE'
+      dataType: 'json',
+      // string 期望的返回数据类型:'json' 'text' 'document' ...
+      async: true,
+      //  boolean true:异步请求 false:同步请求 required
+      data: null,
+      // any 请求参数,data需要和请求头Content-Type对应
+      headers: {},
+      // object 请求头
+      timeout: 3000,
+      // string 超时时间:0表示不设置超时
+      beforeSend: function beforeSend(xhr) {},
+      success: function success(result, status, xhr) {},
+      error: function error(xhr, status, _error) {},
+      complete: function complete(xhr, status) {}
+    }, settings); // 参数验证
+
+
+    if (!_s.url || !_s.type || !_s.dataType || !_s.async) {
+      console.error('参数有误');
+      return;
+    } // 创建XMLHttpRequest请求对象
+
+
+    var xhr = new XMLHttpRequest(); // 请求开始回调函数
+
+    xhr.addEventListener('loadstart', function (e) {
+      _s.beforeSend(xhr);
+    }); // 请求成功回调函数
+
+    xhr.addEventListener('load', function (e) {
+      var status = xhr.status;
+
+      if (status >= 200 && status < 300 || status === 304) {
+        var result;
+
+        if (xhr.responseType === 'text') {
+          result = xhr.responseText;
+        } else if (xhr.responseType === 'document') {
+          result = xhr.responseXML;
+        } else {
+          result = xhr.response;
+        } // 注意:状态码200表示请求发送/接受成功,不表示业务处理成功
+
+
+        _s.success(result, status, xhr);
+      } else {
+        _s.error(xhr, status, e);
+      }
+    }); // 请求结束
+
+    xhr.addEventListener('loadend', function (e) {
+      _s.complete(xhr, xhr.status);
+    }); // 请求出错
+
+    xhr.addEventListener('error', function (e) {
+      _s.error(xhr, xhr.status, e);
+    }); // 请求超时
+
+    xhr.addEventListener('timeout', function (e) {
+      _s.error(xhr, 408, e);
+    });
+    var useUrlParam = false;
+
+    var sType = _s.type.toUpperCase(); // 如果是"简单"请求,则把data参数组装在url上
+
+
+    if (sType === 'GET' || sType === 'DELETE') {
+      useUrlParam = true;
+      _s.url += http.getUrlParam(_s.url, _s.data);
+    } // 初始化请求
+
+
+    xhr.open(_s.type, _s.url, _s.async); // 设置期望的返回数据类型
+
+    xhr.responseType = _s.dataType; // 设置请求头
+
+    for (var _i = 0, _Object$keys = Object.keys(_s.headers); _i < _Object$keys.length; _i++) {
+      var key = _Object$keys[_i];
+      xhr.setRequestHeader(key, _s.headers[key]);
+    } // 设置超时时间
+
+
+    if (_s.async && _s.timeout) {
+      xhr.timeout = _s.timeout;
+    } // 发送请求.如果是简单请求,请求参数应为null.否则,请求参数类型需要和请求头Content-Type对应
+
+
+    xhr.send(useUrlParam ? null : http.getQueryData(_s.data));
+  },
+  // 把参数data转为url查询参数
+  getUrlParam: function getUrlParam(url, data) {
+    if (!data) {
+      return '';
+    }
+
+    var paramsStr = data instanceof Object ? http.getQueryString(data) : data;
+    return url.indexOf('?') !== -1 ? paramsStr : '?' + paramsStr;
+  },
+  // 获取ajax请求参数
+  getQueryData: function getQueryData(data) {
+    if (!data) {
+      return null;
+    }
+
+    if (typeof data === 'string') {
+      return data;
+    }
+
+    if (data instanceof FormData) {
+      return data;
+    }
+
+    return http.getQueryString(data);
+  },
+  // 把对象转为查询字符串
+  getQueryString: function getQueryString(data) {
+    var paramsArr = [];
+
+    if (data instanceof Object) {
+      Object.keys(data).forEach(function (key) {
+        var val = data[key]; // todo 参数Date类型需要根据后台api酌情处理
+
+        if (val instanceof Date) {// val = dateFormat(val, 'yyyy-MM-dd hh:mm:ss');
+        }
+
+        paramsArr.push(encodeURIComponent(key) + '=' + encodeURIComponent(val));
+      });
+    }
+
+    return paramsArr.join('&');
+  }
+};
+module.exports = http;
+
+/***/ }),
+/* 5 */
+/***/ (function(module, exports) {
+
+var clName = 'cut-2-loading';
+
+var createBox = function createBox() {
+  if (document.getElementById(clName)) {
+    return;
+  }
+
+  var loading = document.createElement('section');
+  loading.className = clName;
+  loading.id = clName;
+  loading.innerHTML = '<li></li><li></li><li></li><li></li>';
+  document.body.appendChild(loading);
+
+  if (document.getElementById(clName + '-style')) {
+    return;
+  }
+
+  var style = document.createElement('style');
+  style.innerHTML = "\n\t.".concat(clName, " {position: absolute;z-index:10000; left: 50%;top: 50%;transform: translate3d(-50%, -50%, 0);height: 30px}\n\t.").concat(clName, " li {display: inline-block; width: 10px;height: 10px;margin-right: 6px;border-radius: 50%;background: #fff;animation: cut_2_li 1s 0s infinite}\n\t.").concat(clName, " li:nth-child(2) {animation: cut_2_li 1s 0.2s infinite}\n\t.").concat(clName, " li:nth-child(3) {animation: cut_2_li 1s 0.4s infinite}\n\t.").concat(clName, " li:nth-child(4) {animation: cut_2_li 1s 0.6s infinite}\n\t@-webkit-keyframes cut_2_li {0%, 100% {transform: translate3d(0, -100%, 0);opacity: 0} 30% {transform: translate3d(0, 0, 0);opacity: 1} 60% {transform: translate3d(0, 100%, 0);opacity: 0}}\n\t");
+  style.id = clName + '-style';
+  document.head.appendChild(style);
+};
+
+module.exports = {
+  show: createBox,
+  hide: function hide() {
+    var box = document.getElementById(clName);
+
+    if (box) {
+      document.body.removeChild(box);
+    }
+  }
+};
+
+/***/ }),
+/* 6 */
+/***/ (function(module, exports, __webpack_require__) {
+
+function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
+
 /**
 	拖动和缩放逻辑说明
 	拖动是改变图片的translate3d属性 拖动的位置是鼠标移动的距离
 	所以每次拖动 再鼠标按下时需要把上一次设置的translate3d清空 否则按下的时候图片会发生偏差 会出现跳动的效果
 	缩放时 需要保留上一次translate的位置再进行缩放 否则 缩放时定位图片会出现跳动的效果
 **/
+var loading = __webpack_require__(5);
+
 var image2base = __webpack_require__(2);
 
-var EXIF = __webpack_require__(4);
+var EXIF = __webpack_require__(7);
 
 var W;
 var H;
@@ -309,7 +689,6 @@ var style = document.createElement('style');
 var box = document.createElement('section');
 var cutBox = document.createElement('div');
 var cutPart = document.createElement('p');
-var loading = document.createElement('ul');
 var scaleBox = document.createElement('ul');
 var cutDoBox = document.createElement('ul');
 var scaleBtnWidth = 30; // 缩放按钮宽度
@@ -322,7 +701,7 @@ var createBox = function createBox() {
   var zIndex = 10000;
   var clName = 'image-2-cut-box';
   var fixed = 'position:fixed;left:0;top:0;width:100%;height:100%;';
-  style.innerHTML = ".image-2-cut-fixed {".concat(fixed, "}\n\t.").concat(clName, " {z-index: ").concat(zIndex, ";background: #fff;font-size: 20px}.").concat(clName, " img {display: block}.").concat(clName, " ul {list-style-type:  none}\n\t.").concat(clName, "::after {content: '';display: block;z-index:").concat(zIndex + 2, ";").concat(fixed, "background: rgba(0, 0, 0, 0.6)}\n\t.").concat(clName, " div {z-index:").concat(zIndex + 3, ";").concat(fixed, "}\n\t.").concat(clName, " div p {position: absolute;left: 50%;top: 50%;transform: translate3d(-50%, -50%, 0);overflow: hidden;background: #000}\n\t.").concat(clName, " .cut-2-loading {position: absolute;z-index:").concat(zIndex + 5, "; left: 50%;top: 50%;transform: translate3d(-50%, -50%, 0);height: 30px}\n\t.").concat(clName, " .cut-2-loading li {display: inline-block; width: 10px;height: 10px;margin-right: 6px;border-radius: 50%;background: #fff;animation: cut_2_li 1s 0s infinite}\n\t.").concat(clName, " .cut-2-loading li:nth-child(2) {animation: cut_2_li 1s 0.2s infinite}\n\t.").concat(clName, " .cut-2-loading li:nth-child(3) {animation: cut_2_li 1s 0.4s infinite}\n\t.").concat(clName, " .cut-2-loading li:nth-child(4) {animation: cut_2_li 1s 0.6s infinite}\n\t.").concat(clName, " .cut-2-do {position: absolute;left: 0;width: 100%;bottom: 3%;text-align:center;height: 36px; line-height: 36px;font-size: 14px}\n\t.").concat(clName, " .cut-2-do li:last-child{background: #999; color: #666}\n\t.").concat(clName, " .cut-2-do li {background: #fff;width: 120px;display: inline-block;margin: 0 8px;border-radius: 10px;color: #333}\n\t.").concat(clName, " .cut-2-scale {position: absolute;left: 0;top: 30px;height: 36px;width: 100%;text-align: center;z-index:").concat(zIndex + 4, "}.").concat(clName, " .cut-2-scale li{display: inline-block;}\n\t.").concat(clName, " .cut-2-scale li:first-child, .").concat(clName, " .cut-2-scale li:last-child {box-sizing:border-box;width: 32px;height: 32px;color: #fff;line-height: 30px}\n\t.").concat(clName, " .cut-2-scale li:nth-child(2) {width: 60%;margin: 0 5%;height: 10px;background: #ccc;border-radius: 20px;transform: translate3d(0, -4px, 0)}\n\t.").concat(clName, " .cut-2-scale li:nth-child(2) p {position: absolute;width: 100%;left: 0;top: 0;width: 0;background: #fff;height: 100%;border-radius: 20px}\n\t.").concat(clName, " .cut-2-scale li:nth-child(2) b {position: absolute;width: ").concat(scaleBtnWidth, "px;height: ").concat(scaleBtnWidth, "px;border-radius: 50%;left: 0;top: -10px;display: block;background: #999}\n\t@-webkit-keyframes cut_2_li {0%, 100% {transform: translate3d(0, -100%, 0);opacity: 0} 30% {transform: translate3d(0, 0, 0);opacity: 1} 60% {transform: translate3d(0, 100%, 0);opacity: 0}}\n\t");
+  style.innerHTML = ".image-2-cut-fixed {".concat(fixed, "}\n\t.").concat(clName, " {z-index: ").concat(zIndex, ";background: #fff;font-size: 20px}.").concat(clName, " img {display: block}.").concat(clName, " ul {list-style-type:  none}\n\t.").concat(clName, "::after {content: '';display: block;z-index:").concat(zIndex + 2, ";").concat(fixed, "background: rgba(0, 0, 0, 0.6)}\n\t.").concat(clName, " div {z-index:").concat(zIndex + 3, ";").concat(fixed, "}\n\t.").concat(clName, " div p {position: absolute;left: 50%;top: 50%;transform: translate3d(-50%, -50%, 0);overflow: hidden;background: #000}\n\t.").concat(clName, " .cut-2-do {position: absolute;left: 0;width: 100%;bottom: 3%;text-align:center;height: 36px; line-height: 36px;font-size: 14px}\n\t.").concat(clName, " .cut-2-do li:last-child{background: #999; color: #666}\n\t.").concat(clName, " .cut-2-do li {background: #fff;width: 120px;display: inline-block;margin: 0 8px;border-radius: 10px;color: #333}\n\t.").concat(clName, " .cut-2-scale {position: absolute;left: 0;top: 30px;height: 36px;width: 100%;text-align: center;z-index:").concat(zIndex + 4, "}.").concat(clName, " .cut-2-scale li{display: inline-block;}\n\t.").concat(clName, " .cut-2-scale li:first-child, .").concat(clName, " .cut-2-scale li:last-child {box-sizing:border-box;width: 32px;height: 32px;color: #fff;line-height: 30px}\n\t.").concat(clName, " .cut-2-scale li:nth-child(2) {width: 60%;margin: 0 5%;height: 10px;background: #ccc;border-radius: 20px;transform: translate3d(0, -4px, 0)}\n\t.").concat(clName, " .cut-2-scale li:nth-child(2) p {position: absolute;width: 100%;left: 0;top: 0;width: 0;background: #fff;height: 100%;border-radius: 20px}\n\t.").concat(clName, " .cut-2-scale li:nth-child(2) b {position: absolute;width: ").concat(scaleBtnWidth, "px;height: ").concat(scaleBtnWidth, "px;border-radius: 50%;left: 0;top: -10px;display: block;background: #999}\n\t");
   box.className = 'image-2-cut-fixed ' + clName;
   document.body.appendChild(box);
   box.appendChild(cutBox);
@@ -333,10 +712,7 @@ var createBox = function createBox() {
   scaleBox.innerHTML = '<li>-</li><li><p></p><b></b></li><li>+</li>';
   cutDoBox.className = 'cut-2-do';
   cutDoBox.innerHTML = '<li>确定</li><li>取消</li>';
-  loading.className = 'cut-2-loading';
-  loading.innerHTML = '<li></li><li></li><li></li><li></li>';
   cutPart.style.opacity = 0;
-  box.appendChild(loading);
   document.head.appendChild(style);
 };
 
@@ -424,7 +800,6 @@ var touchMove = function touchMove(ev) {
   left = left <= -(W + nowMargin[3] - cutWidth - cutToPrintDisX) / 2 ? -(W + nowMargin[3] - cutWidth - cutToPrintDisX) / 2 : left;
   top = top >= cutToPrintDisY - nowMargin[0] ? cutToPrintDisY - nowMargin[0] : top;
   top = top <= -(H + nowMargin[0] - cutHeight - cutToPrintDisY) / 2 ? -(H + nowMargin[0] - cutHeight - cutToPrintDisY) / 2 : top;
-  document.title = left;
   moveLeft = left;
   moveTop = top;
   picCssAll = "-webkit-transform:translate3d(".concat(left, "px,").concat(top, "px,0);").concat(picCss);
@@ -665,7 +1040,6 @@ var init = function init(fn) {
   addListener(scaleBtn, 'touchend', scaleTouchEnd);
   scaleBtn.style.left = defaultWidth + 'px';
   scaleBtn.parentNode.children[0].style.width = defaultWidth + 'px';
-  box.removeChild(loading);
   cutPart.style.opacity = 1; //裁剪和取消
 
   addListener(cutDoBox.children[0], 'touchstart', function () {
@@ -693,6 +1067,7 @@ module.exports = function (params) {
 
   createBox();
   addListener(box, 'touchmove');
+  loading.show();
   return new Promise(function (resolve, reject) {
     var error = '图片加载失败，请确认图片路径是否正确';
 
@@ -727,18 +1102,20 @@ module.exports = function (params) {
           error: error
         });
       });
+      loading.hide();
     };
 
     image.onerror = function () {
       reject({
         error: error
       });
+      loading.hide();
     };
   });
 };
 
 /***/ }),
-/* 4 */
+/* 7 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;(function () {
@@ -1852,293 +2229,6 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;(function () {
 				__WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
   }
 }).call(this);
-
-/***/ }),
-/* 5 */
-/***/ (function(module, exports, __webpack_require__) {
-
-function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
-
-var http = __webpack_require__(6);
-
-var fileType = 'jpeg';
-
-var _success = function success() {};
-
-var faile = function faile() {};
-
-var src = '';
-var fileDir = 'common';
-var fileUploadAuth = 'https://third-api.wyins.net/oss/getAuthInfo';
-var aliyuncs = 'https://winbrokers.oss-cn-hangzhou.aliyuncs.com';
-var uploadParams = ''; // base64转blob
-
-var base64ToBlob = function base64ToBlob(str) {
-  var arr = str.split(',');
-  var mime = arr[0].match(/:(.*?);/)[1];
-  var bstr = atob(arr[1]);
-  var n = bstr.length;
-  var u8arr = new Uint8Array(n);
-
-  while (n--) {
-    u8arr[n] = bstr.charCodeAt(n);
-  }
-
-  return new Blob([u8arr], {
-    type: mime
-  });
-};
-
-var chunk = function chunk() {
-  return 'abcdefghjiklmnopqrstuvwxyz'.charAt(parseInt(Math.random() * 26)) + Date.now().toString() + 'abcdefghjiklmnopqrstuvwxyz'.charAt(parseInt(Math.random() * 26));
-};
-
-var upload = function upload(params) {
-  if (!params || !params.url) {
-    console.error('请选择您要上传的base64图片源码');
-
-    if (params && typeof params.fail === 'function') {
-      params.fail(0);
-    }
-
-    return;
-  }
-
-  src = params.url;
-  fileDir = params.dir || fileDir;
-  fileType = params.fileType || fileType;
-  _success = typeof params.success === 'function' ? params.success : _success;
-  fail = typeof params.fail === 'function' ? params.fail : fail;
-
-  if (_typeof(uploadParams) !== 'object') {
-    return;
-  } else if (!uploadParams) {
-    fail(1);
-    return;
-  }
-
-  var blob = base64ToBlob(src);
-  var fileName = uploadParams.expire + '_' + chunk();
-
-  var _formData = new FormData();
-
-  _formData.append('success_action_status', 200);
-
-  _formData.append('signature', uploadParams.signature);
-
-  _formData.append('policy', uploadParams.policy);
-
-  _formData.append('OSSAccessKeyId', uploadParams.accessid);
-
-  _formData.append('key', uploadParams.dir + fileName + '.' + fileType);
-
-  _formData.append('file', blob);
-
-  http.ajax({
-    url: aliyuncs,
-    type: 'POST',
-    data: _formData,
-    success: function success() {
-      var src = 'https:' + uploadParams.cdnMediaHost + uploadParams.dir + fileName + '.' + fileType;
-      var img = document.createElement('img');
-      img.src = src + '?x-oss-process=image/crop,x_0,y_0,w_10,h_10,g_se';
-      img.style.cssText = 'position:absolute;left:100%;width:1px;top:100%';
-      document.body.appendChild(img);
-
-      img.onload = function () {
-        // document.body.removeChild(img)
-        _success(src);
-      };
-    },
-    error: function error() {
-      fail(2);
-    }
-  });
-};
-
-module.exports = {
-  init: function init() {
-    http.ajax({
-      url: fileUploadAuth,
-      data: {
-        fileDir: fileDir
-      },
-      success: function success(res) {
-        uploadParams = null;
-
-        if (res && res.data) {
-          uploadParams = res.data;
-        }
-      },
-      error: function error() {
-        fail(1);
-      }
-    });
-  },
-  upload: upload
-};
-
-/***/ }),
-/* 6 */
-/***/ (function(module, exports) {
-
-var http = {
-  /**
-  * js封装ajax请求
-  * >>使用new XMLHttpRequest 创建请求对象,所以不考虑低端IE浏览器(IE6及以下不支持XMLHttpRequest)
-  * >>使用es6语法,如果需要在正式环境使用,则可以用babel转换为es5语法 https://babeljs.cn/docs/setup/#installation
-  *  @param settings 请求参数模仿jQuery ajax
-  *  调用该方法,data参数需要和请求头Content-Type对应
-  *  Content-Type                        data                                     描述
-  *  application/x-www-form-urlencoded   'name=哈哈&age=12'或{name:'哈哈',age:12}  查询字符串,用&分割
-  *  application/json                     name=哈哈&age=12'                        json字符串
-  *  multipart/form-data                  new FormData()                           FormData对象,当为FormData类型,不要手动设置Content-Type
-  *  注意:请求参数如果包含日期类型.是否能请求成功需要后台接口配合
-  */
-  ajax: function ajax() {
-    var settings = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
-
-    // 初始化请求参数
-    var _s = Object.assign({
-      url: '',
-      // string
-      type: 'GET',
-      // string 'GET' 'POST' 'DELETE'
-      dataType: 'json',
-      // string 期望的返回数据类型:'json' 'text' 'document' ...
-      async: true,
-      //  boolean true:异步请求 false:同步请求 required
-      data: null,
-      // any 请求参数,data需要和请求头Content-Type对应
-      headers: {},
-      // object 请求头
-      timeout: 3000,
-      // string 超时时间:0表示不设置超时
-      beforeSend: function beforeSend(xhr) {},
-      success: function success(result, status, xhr) {},
-      error: function error(xhr, status, _error) {},
-      complete: function complete(xhr, status) {}
-    }, settings); // 参数验证
-
-
-    if (!_s.url || !_s.type || !_s.dataType || !_s.async) {
-      console.error('参数有误');
-      return;
-    } // 创建XMLHttpRequest请求对象
-
-
-    var xhr = new XMLHttpRequest(); // 请求开始回调函数
-
-    xhr.addEventListener('loadstart', function (e) {
-      _s.beforeSend(xhr);
-    }); // 请求成功回调函数
-
-    xhr.addEventListener('load', function (e) {
-      var status = xhr.status;
-
-      if (status >= 200 && status < 300 || status === 304) {
-        var result;
-
-        if (xhr.responseType === 'text') {
-          result = xhr.responseText;
-        } else if (xhr.responseType === 'document') {
-          result = xhr.responseXML;
-        } else {
-          result = xhr.response;
-        } // 注意:状态码200表示请求发送/接受成功,不表示业务处理成功
-
-
-        _s.success(result, status, xhr);
-      } else {
-        _s.error(xhr, status, e);
-      }
-    }); // 请求结束
-
-    xhr.addEventListener('loadend', function (e) {
-      _s.complete(xhr, xhr.status);
-    }); // 请求出错
-
-    xhr.addEventListener('error', function (e) {
-      _s.error(xhr, xhr.status, e);
-    }); // 请求超时
-
-    xhr.addEventListener('timeout', function (e) {
-      _s.error(xhr, 408, e);
-    });
-    var useUrlParam = false;
-
-    var sType = _s.type.toUpperCase(); // 如果是"简单"请求,则把data参数组装在url上
-
-
-    if (sType === 'GET' || sType === 'DELETE') {
-      useUrlParam = true;
-      _s.url += http.getUrlParam(_s.url, _s.data);
-    } // 初始化请求
-
-
-    xhr.open(_s.type, _s.url, _s.async); // 设置期望的返回数据类型
-
-    xhr.responseType = _s.dataType; // 设置请求头
-
-    for (var _i = 0, _Object$keys = Object.keys(_s.headers); _i < _Object$keys.length; _i++) {
-      var key = _Object$keys[_i];
-      xhr.setRequestHeader(key, _s.headers[key]);
-    } // 设置超时时间
-
-
-    if (_s.async && _s.timeout) {
-      xhr.timeout = _s.timeout;
-    } // 发送请求.如果是简单请求,请求参数应为null.否则,请求参数类型需要和请求头Content-Type对应
-
-
-    xhr.send(useUrlParam ? null : http.getQueryData(_s.data));
-  },
-  // 把参数data转为url查询参数
-  getUrlParam: function getUrlParam(url, data) {
-    if (!data) {
-      return '';
-    }
-
-    var paramsStr = data instanceof Object ? http.getQueryString(data) : data;
-    return url.indexOf('?') !== -1 ? paramsStr : '?' + paramsStr;
-  },
-  // 获取ajax请求参数
-  getQueryData: function getQueryData(data) {
-    if (!data) {
-      return null;
-    }
-
-    if (typeof data === 'string') {
-      return data;
-    }
-
-    console.log(data instanceof FormData);
-
-    if (data instanceof FormData) {
-      return data;
-    }
-
-    return http.getQueryString(data);
-  },
-  // 把对象转为查询字符串
-  getQueryString: function getQueryString(data) {
-    var paramsArr = [];
-
-    if (data instanceof Object) {
-      Object.keys(data).forEach(function (key) {
-        var val = data[key]; // todo 参数Date类型需要根据后台api酌情处理
-
-        if (val instanceof Date) {// val = dateFormat(val, 'yyyy-MM-dd hh:mm:ss');
-        }
-
-        paramsArr.push(encodeURIComponent(key) + '=' + encodeURIComponent(val));
-      });
-    }
-
-    return paramsArr.join('&');
-  }
-};
-module.exports = http;
 
 /***/ })
 /******/ ])["default"];

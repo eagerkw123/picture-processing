@@ -378,6 +378,65 @@ const init = (fn) => {
 	})
 }
 
+const cb = (url, resolve, reject) => {
+	cutImage.src = url
+	init((src) => {
+		if (src) {
+			resolve(src)
+		} else {
+			reject({
+				error: '用户取消了操作'
+			})
+		}
+	})
+}
+
+const checkImage = (src, resolve, reject) => {
+	let imgSrc = src
+	image.src = imgSrc
+	const error = '图片加载失败，请确认图片格式或者路径是否正确'
+	image.onload = () => {
+		EXIF.getData(image, function(){
+			orientation = EXIF.getTag(this, 'Orientation') || 1
+		})
+		if (orientation !== 1) {
+			imgSrc = compress(image, orientation)
+		}
+		if (/^data:.+base64/.test(imgSrc)) {
+			cb(imgSrc, resolve, reject)
+		} else {
+			image2base(imgSrc).then(res => {
+				cb(res.base64, resolve, reject)
+			}).catch(e => {
+				reject({
+					error
+				})
+			})
+		}
+		loading.hide()
+	}
+	image.onerror = () => {
+		reject({
+			error
+		})
+		loading.hide()
+	}
+}
+
+const goReturn = (src, fileType) => {
+  return new Promise((resolve, reject) => {
+    if (fileType) {
+      var reader = new FileReader()
+      reader.onload = function(e) {
+        checkImage(e.target.result, resolve, reject)
+      }
+      reader.readAsDataURL(src)
+    } else {
+      checkImage(src, resolve, reject)
+    }
+  })
+}
+
 module.exports = (params) => {
 	const paramsType = typeof params
 	W = window.innerWidth
@@ -389,48 +448,14 @@ module.exports = (params) => {
 	cutHeight = paramsType === 'string' ? cutWidth : (params.height || cutWidth)
 	cutHeight = Math.min(window.innerHeight, parseInt(cutHeight))
 	cutPart.style.cssText = `width: ${cutWidth}px;height: ${cutHeight}px;`
-	image.src = imgSrc
 	// 创建弹窗
 	createBox()
 	addListener(box, 'touchmove')
 	loading.show()
-	return new Promise((resolve, reject) => {
-		const error = '图片加载失败，请确认图片路径是否正确'
-		image.onload = () => {
-			EXIF.getData(image, function(){
-				orientation = EXIF.getTag(this, 'Orientation') || 1
-			})
-			if (orientation !== 1) {
-				imgUrl = compress(image, orientation)
-			}
-			image2base(imgSrc).then(res => {
-				imgSrc = res.base64
-				image.src = imgSrc
-				cutImage = new Image()
-				cutImage.src = imgSrc
-				image.onload = () => {
-					init((src) => {
-						if (src) {
-							resolve(src)
-						} else {
-							reject({
-								error: '用户取消了操作'
-							})
-						}
-					})
-				}
-			}).catch(e => {
-				reject({
-					error
-				})
-			})
-			loading.hide()
-		}
-		image.onerror = () => {
-			reject({
-				error
-			})
-			loading.hide()
-		}
-	})
+	// 如果是file类型
+	if (typeof imgSrc === 'object' && imgSrc.name && imgSrc.type && imgSrc.type.indexOf('image') > -1) {
+	    return goReturn(imgSrc, 1)
+	} else {
+	    return goReturn(imgSrc)
+	}
 }

@@ -2,12 +2,12 @@ const http = require('./http.js')
 const loading = require('./image2loading')
 let fileType = 'jpeg'
 let success = () => {}
-let faile = () => {}
+let fail = () => {}
 let url = ''
 let fileDir = 'common'
 let fileUploadAuth = 'https://third-api.wyins.net/oss/getAuthInfo'
 let aliyuncs = 'https://winbrokers.oss-cn-hangzhou.aliyuncs.com'
-let uploadParams = ''
+let uploadParams
 let parmas = {}
 let pending = false
 
@@ -65,7 +65,10 @@ const upload = () => {
 }
 
 module.exports = {
-    init: () => {
+    init: (b) => {
+        uploadParams = ''
+        fileUploadAuth = b ? 'https://management.winbaoxian.com/oss/getAuthInfo' : fileUploadAuth
+        aliyuncs = b ? 'https://wyjhs.oss-cn-hangzhou.aliyuncs.com' : aliyuncs
         http.ajax({
             url: fileUploadAuth,
             data: {
@@ -76,7 +79,6 @@ module.exports = {
                 if (res && res.data) {
                     uploadParams = res.data
                 }
-                console.log(pending)
                 if (pending) {
                     upload()
                     pending = false
@@ -89,8 +91,8 @@ module.exports = {
         })
     },
     send: (params) => {
-        if (!params || !params.url || params.url.indexOf('base64') < 0) {
-            console.error('请选择您要上传的base64图片源码')
+        if (!params || typeof params !== 'object' || !params.url) {
+            console.error('参数错误，请选择您要上传的图片')
             if (params && typeof params.fail === 'function') {
                 params.fail(0)
             }
@@ -98,10 +100,28 @@ module.exports = {
         }
         loading.show()
         url = params.url
+        console.log(params.url)
         fileDir = params.dir || fileDir
         fileType = params.fileType || fileType
         success = typeof params.success === 'function' ? params.success : success
         fail = typeof params.fail === 'function' ? params.fail : fail
+        // 如果是file类型
+        if (typeof url === 'object' && url.name && url.type && url.type.indexOf('image') > -1) {
+            var reader = new FileReader()
+            reader.onload = function(e) {
+                url = e.target.result
+                if (typeof uploadParams !== 'object') {
+                    pending = true
+                    return
+                } else if (!uploadParams) {
+                    fail(1)
+                    return
+                }
+                upload()
+            }
+            reader.readAsDataURL(url)
+            return
+        }
         if (typeof uploadParams !== 'object') {
             pending = true
             return
