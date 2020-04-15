@@ -205,70 +205,104 @@ module.exports = function (arr) {
 /* 2 */
 /***/ (function(module, exports, __webpack_require__) {
 
+function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
+
 var image2upload = __webpack_require__(3);
+
+var type,
+    upload,
+    isSupport,
+    imgSrc,
+    uploadType = 1;
+
+var getBase64Image = function getBase64Image(img, width, height) {
+  console.log(type);
+  var canvas = document.createElement('canvas');
+  canvas.width = width || img.width;
+  canvas.height = height || img.height;
+  var ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/".concat(type));
+};
+
+var checkImage = function checkImage(src, resolve, reject, file) {
+  var image = new Image();
+  image.crossOrigin = '';
+  image.src = src;
+
+  image.onerror = function () {
+    var error = {
+      e: 'Picture does not exist: ' + src
+    };
+    console.error(error.e);
+    reject(error);
+  };
+
+  image.onload = function () {
+    var base64 = file ? src : getBase64Image(image);
+
+    if (upload) {
+      image2upload.init(uploadType === 2);
+      image2upload.send({
+        url: file || base64,
+        fileType: type,
+        success: function success(src) {
+          resolve({
+            src: src,
+            base64: base64,
+            width: image.width,
+            height: image.height
+          });
+        },
+        fail: function fail(code) {
+          reject({
+            code: code
+          });
+        }
+      });
+      return;
+    }
+
+    resolve({
+      base64: base64,
+      width: image.width,
+      height: image.height
+    });
+  };
+};
+
+var goReturn = function goReturn(src, fileType) {
+  return new Promise(function (resolve, reject) {
+    if (fileType) {
+      var reader = new FileReader();
+
+      reader.onload = function (e) {
+        checkImage(e.target.result, resolve, reject, src);
+      };
+
+      reader.readAsDataURL(src);
+    } else {
+      checkImage(src, resolve, reject);
+    }
+  });
+};
 
 module.exports = function (params) {
   var tp = typeof params === 'string';
-  var type = tp ? 'jpeg' : params.type;
-  var imgSrc = tp ? params : params.url;
-  var upload = tp ? false : params.upload;
-  var isSupport = ['jpeg', 'png', 'webp'].find(function (item) {
+  type = tp ? 'jpeg' : params.type;
+  imgSrc = tp ? params : params.url;
+  upload = tp ? false : params.upload;
+  uploadType = tp ? uploadType : params.uploadType || uploadType;
+  isSupport = ['jpeg', 'png', 'webp'].find(function (item) {
     return item === type;
   });
-  type = isSupport || 'jpeg';
+  type = isSupport || 'jpeg'; // 如果是file类型
 
-  function getBase64Image(img, width, height) {
-    var canvas = document.createElement('canvas');
-    canvas.width = width || img.width;
-    canvas.height = height || img.height;
-    var ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    var dataURL = canvas.toDataURL("image/".concat(type));
-    return dataURL;
+  if (_typeof(imgSrc) === 'object' && imgSrc.name && imgSrc.type && imgSrc.type.indexOf('image') > -1) {
+    return goReturn(imgSrc, 1);
+  } else {
+    return goReturn(imgSrc);
   }
-
-  var image = new Image();
-  image.crossOrigin = '';
-  image.src = imgSrc;
-  return new Promise(function (resolve, reject) {
-    image.onerror = function () {
-      var error = {
-        e: 'Picture does not exist: ' + imgSrc
-      };
-      consolo.error(error.e);
-      reject(error);
-    };
-
-    image.onload = function () {
-      if (upload) {
-        image2upload.init();
-        image2upload.send({
-          url: getBase64Image(image),
-          fileType: type,
-          success: function success(src) {
-            resolve({
-              src: src,
-              base64: getBase64Image(image),
-              width: image.width,
-              height: image.height
-            });
-          },
-          fail: function fail(code) {
-            reject({
-              code: code
-            });
-          }
-        });
-        return;
-      }
-
-      resolve({
-        base64: getBase64Image(image),
-        width: image.width,
-        height: image.height
-      });
-    };
-  });
 };
 
 /***/ }),
@@ -285,13 +319,13 @@ var fileType = 'jpeg';
 
 var success = function success() {};
 
-var faile = function faile() {};
+var fail = function fail() {};
 
 var url = '';
 var fileDir = 'common';
 var fileUploadAuth = 'https://third-api.wyins.net/oss/getAuthInfo';
 var aliyuncs = 'https://winbrokers.oss-cn-hangzhou.aliyuncs.com';
-var uploadParams = '';
+var uploadParams;
 var parmas = {};
 var pending = false; // base64转blob
 
@@ -363,7 +397,10 @@ var upload = function upload() {
 };
 
 module.exports = {
-  init: function init() {
+  init: function init(b) {
+    uploadParams = '';
+    fileUploadAuth = b ? 'https://management.winbaoxian.com/oss/getAuthInfo' : fileUploadAuth;
+    aliyuncs = b ? 'https://wyjhs.oss-cn-hangzhou.aliyuncs.com' : aliyuncs;
     http.ajax({
       url: fileUploadAuth,
       data: {
@@ -375,8 +412,6 @@ module.exports = {
         if (res && res.data) {
           uploadParams = res.data;
         }
-
-        console.log(pending);
 
         if (pending) {
           upload();
@@ -390,8 +425,8 @@ module.exports = {
     });
   },
   send: function send(params) {
-    if (!params || !params.url || params.url.indexOf('base64') < 0) {
-      console.error('请选择您要上传的base64图片源码');
+    if (!params || _typeof(params) !== 'object' || !params.url) {
+      console.error('参数错误，请选择您要上传的图片');
 
       if (params && typeof params.fail === 'function') {
         params.fail(0);
@@ -402,10 +437,32 @@ module.exports = {
 
     loading.show();
     url = params.url;
+    console.log(params.url);
     fileDir = params.dir || fileDir;
     fileType = params.fileType || fileType;
     success = typeof params.success === 'function' ? params.success : success;
-    fail = typeof params.fail === 'function' ? params.fail : fail;
+    fail = typeof params.fail === 'function' ? params.fail : fail; // 如果是file类型
+
+    if (_typeof(url) === 'object' && url.name && url.type && url.type.indexOf('image') > -1) {
+      var reader = new FileReader();
+
+      reader.onload = function (e) {
+        url = e.target.result;
+
+        if (_typeof(uploadParams) !== 'object') {
+          pending = true;
+          return;
+        } else if (!uploadParams) {
+          fail(1);
+          return;
+        }
+
+        upload();
+      };
+
+      reader.readAsDataURL(url);
+      return;
+    }
 
     if (_typeof(uploadParams) !== 'object') {
       pending = true;
@@ -584,6 +641,7 @@ module.exports = http;
 /***/ (function(module, exports) {
 
 var clName = 'cut-2-loading';
+var isStopPropatation = false;
 
 var createBox = function createBox() {
   if (document.getElementById(clName)) {
@@ -593,7 +651,7 @@ var createBox = function createBox() {
   var loading = document.createElement('section');
   loading.className = clName;
   loading.id = clName;
-  loading.innerHTML = '<li></li><li></li><li></li><li></li>';
+  loading.innerHTML = '<ul><li></li><li></li><li></li><li></li></ul>';
   document.body.appendChild(loading);
 
   if (document.getElementById(clName + '-style')) {
@@ -601,13 +659,16 @@ var createBox = function createBox() {
   }
 
   var style = document.createElement('style');
-  style.innerHTML = "\n\t.".concat(clName, " {position: absolute;z-index:10000; left: 50%;top: 50%;transform: translate3d(-50%, -50%, 0);height: 30px}\n\t.").concat(clName, " li {display: inline-block; width: 10px;height: 10px;margin-right: 6px;border-radius: 50%;background: #fff;animation: cut_2_li 1s 0s infinite}\n\t.").concat(clName, " li:nth-child(2) {animation: cut_2_li 1s 0.2s infinite}\n\t.").concat(clName, " li:nth-child(3) {animation: cut_2_li 1s 0.4s infinite}\n\t.").concat(clName, " li:nth-child(4) {animation: cut_2_li 1s 0.6s infinite}\n\t@-webkit-keyframes cut_2_li {0%, 100% {transform: translate3d(0, -100%, 0);opacity: 0} 30% {transform: translate3d(0, 0, 0);opacity: 1} 60% {transform: translate3d(0, 100%, 0);opacity: 0}}\n\t");
+  style.innerHTML = "\n\t".concat(isStopPropatation ? '.' + clName + '{position: fixed;left: 0;top: 0;width: 100%;height: 100%; z-index: 100000}' : '', "\n\t.").concat(clName, " ul {position: fixed;width: 100%;height: 30px;z-index:100001; left: 0;border-radius: 10px;text-align:center;top: 50%;transform: translate3d(0, -50%, 0)}\n\t.").concat(clName, " li {display: inline-block; width: 10px;height: 10px;margin-right: 6px;border-radius: 50%;background: #fff;animation: cut_2_li 1s 0s infinite}\n\t.").concat(clName, " li:nth-child(2) {animation: cut_2_li 1s 0.2s infinite}\n\t.").concat(clName, " li:nth-child(3) {animation: cut_2_li 1s 0.4s infinite}\n\t.").concat(clName, " li:nth-child(4) {animation: cut_2_li 1s 0.6s infinite}\n\t@-webkit-keyframes cut_2_li {0%, 100% {transform: translate3d(0, -100%, 0);background: rgba(0, 0, 0, 0.5)} 30% {transform: translate3d(0, 0, 0);background: #fff} 60% {transform: translate3d(0, 100%, 0);background: rgba(0, 0, 0, 0)}}\n\t");
   style.id = clName + '-style';
   document.head.appendChild(style);
 };
 
 module.exports = {
-  show: createBox,
+  show: function show(b) {
+    isStopPropatation = b || false;
+    createBox();
+  },
   hide: function hide() {
     var box = document.getElementById(clName);
 
@@ -1051,6 +1112,72 @@ var init = function init(fn) {
   });
 };
 
+var cb = function cb(url, resolve, reject) {
+  cutImage.src = url;
+  init(function (src) {
+    if (src) {
+      resolve(src);
+    } else {
+      reject({
+        error: '用户取消了操作'
+      });
+    }
+  });
+};
+
+var checkImage = function checkImage(src, resolve, reject) {
+  var imgSrc = src;
+  image.src = imgSrc;
+  var error = '图片加载失败，请确认图片格式或者路径是否正确';
+
+  image.onload = function () {
+    EXIF.getData(image, function () {
+      orientation = EXIF.getTag(this, 'Orientation') || 1;
+    });
+
+    if (orientation !== 1) {
+      imgSrc = compress(image, orientation);
+    }
+
+    if (/^data:.+base64/.test(imgSrc)) {
+      cb(imgSrc, resolve, reject);
+    } else {
+      image2base(imgSrc).then(function (res) {
+        cb(res.base64, resolve, reject);
+      })["catch"](function (e) {
+        reject({
+          error: error
+        });
+      });
+    }
+
+    loading.hide();
+  };
+
+  image.onerror = function () {
+    reject({
+      error: error
+    });
+    loading.hide();
+  };
+};
+
+var goReturn = function goReturn(src, fileType) {
+  return new Promise(function (resolve, reject) {
+    if (fileType) {
+      var reader = new FileReader();
+
+      reader.onload = function (e) {
+        checkImage(e.target.result, resolve, reject);
+      };
+
+      reader.readAsDataURL(src);
+    } else {
+      checkImage(src, resolve, reject);
+    }
+  });
+};
+
 module.exports = function (params) {
   var paramsType = _typeof(params);
 
@@ -1062,56 +1189,17 @@ module.exports = function (params) {
   cutWidth = Math.min(W, parseInt(cutWidth));
   cutHeight = paramsType === 'string' ? cutWidth : params.height || cutWidth;
   cutHeight = Math.min(window.innerHeight, parseInt(cutHeight));
-  cutPart.style.cssText = "width: ".concat(cutWidth, "px;height: ").concat(cutHeight, "px;");
-  image.src = imgSrc; // 创建弹窗
+  cutPart.style.cssText = "width: ".concat(cutWidth, "px;height: ").concat(cutHeight, "px;"); // 创建弹窗
 
   createBox();
   addListener(box, 'touchmove');
-  loading.show();
-  return new Promise(function (resolve, reject) {
-    var error = '图片加载失败，请确认图片路径是否正确';
+  loading.show(); // 如果是file类型
 
-    image.onload = function () {
-      EXIF.getData(image, function () {
-        orientation = EXIF.getTag(this, 'Orientation') || 1;
-      });
-
-      if (orientation !== 1) {
-        imgUrl = compress(image, orientation);
-      }
-
-      image2base(imgSrc).then(function (res) {
-        imgSrc = res.base64;
-        image.src = imgSrc;
-        cutImage = new Image();
-        cutImage.src = imgSrc;
-
-        image.onload = function () {
-          init(function (src) {
-            if (src) {
-              resolve(src);
-            } else {
-              reject({
-                error: '用户取消了操作'
-              });
-            }
-          });
-        };
-      })["catch"](function (e) {
-        reject({
-          error: error
-        });
-      });
-      loading.hide();
-    };
-
-    image.onerror = function () {
-      reject({
-        error: error
-      });
-      loading.hide();
-    };
-  });
+  if (_typeof(imgSrc) === 'object' && imgSrc.name && imgSrc.type && imgSrc.type.indexOf('image') > -1) {
+    return goReturn(imgSrc, 1);
+  } else {
+    return goReturn(imgSrc);
+  }
 };
 
 /***/ }),

@@ -1,5 +1,5 @@
 ## 图片处理插件
-图片处理插件，目前包括以下功能： 图片转css背景，图片转base（包括webp），图片裁剪功能, 图片上传，loading小动画
+图片处理插件，目前包括以下功能： 图片转css背景，图片转base（包括webp），图片裁剪功能, 图片上传，loading小动画, loading进度条模拟
 
 ### Import
 ```js
@@ -9,7 +9,7 @@ npm i picture-processing -S
 ### Example
 
 ```js
-import { image2css, image2base, image2cut, image2upload, image2loading } from 'picture-processing';
+import { image2css, image2base, image2cut, image2upload, image2loading, image2percent } from 'picture-processing';
 export default {
   created() {
     // 图片转背景 
@@ -72,12 +72,30 @@ export default {
     // show方法接受boolean参数 表示是否创建loading遮罩层  true为创建 默认为false 为不创建
     image2loading.show() // 显示动画
     image2loading.hide() // 隐藏动画
+
+    // loading进度条模拟
+    // 包括start和end方法 为前端模拟 刚开始百分比稍快 然后越来越慢 到100之前的一个峰值会慢慢停止 直至end方法调用后完成100
+    // start 开启进度条滚动 当需要进度任务完成时 调用end方法即可
+    image2percent.start() // 会返回canvas节点
+    image2percent.end()
   }
 }
 ```
 
 ## *API*
-picture-processing 目前只支持 image2css(图片转背景) image2base(图片转base64) image2cut(图片裁剪功能) image2loading(loading动画) image2uplaod(图片上传)
+picture-processing 目前只支持 
+
+image2css(图片转背景) 
+
+image2base(图片转base64) 
+
+image2cut(图片裁剪功能) 
+
+image2loading(loading动画) 
+
+image2uplaod(图片上传) 
+
+image2percent.start()
 
 
 ---
@@ -106,7 +124,7 @@ picture-processing 目前只支持 image2css(图片转背景) image2base(图片�
 ```js
   image2base({
     url: '', // 图片url支持url路径 url地址 file类型图片
-    type: '', // 转换的类型 如果图片源是file类型 则type默认base64/png 如股票选择upload 则type有效 否则type无效
+    type: '', // 转换的类型 如果图片源是file类型 则type默认base64/png 如果选择upload 则type有效 否则type无效
     upload: true // 是否需要上传 如果选择上传，则返回的res里包含src
     uploadType: 2 // 选择upload之后附加的uploadtype  默认为1  经纪上传  2为科技上传
   })
@@ -177,6 +195,24 @@ picture-processing 目前只支持 image2css(图片转背景) image2base(图片�
 ```js
   image2loading.show() // 显示loading 默认为boolean true为显示遮罩 默认为false不显示
   image2loading.hide()
+```
+
+#### 参数
+  无
+
+#### 返回值
+  无
+
+
+---
+
+
+### *image2percent*
+
+#### 示例
+```js
+  image2percent.start() // 开始百分比
+  image2percent.end() // 手动完成百分比
 ```
 
 #### 参数
