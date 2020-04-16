@@ -1,5 +1,5 @@
-const width = 130 * 2
-const height = 130 * 2
+const width = 91 * 2
+const height = 91 * 2
 const setTimer = function(fn,time){
   if(!fn || !time){
     return
@@ -36,47 +36,47 @@ const stopPercent = parseInt(Math.random() * 5) + 85
 const canvas = document.createElement('canvas')
 const ctx = canvas.getContext('2d')
 const logoPos = {
-	left: width / 3,
-	top: 80
+	left: 64,
+	top: 46
 }
 const point = {
 	x: width / 2,
-	y: height / 2 - 24,
-	r: 80
+	y: height / 2 - 26,
+	r: 46
 }
 let timer
 let percent = 0
 const drawLogo = () => {
 	const left = logoPos.left
 	const top = logoPos.top
-	const lineWidth = 10
+	const lineWidth = 6
 	ctx.beginPath()
 	ctx.fillStyle = '#fff'
-	ctx.fillRect(left, top, lineWidth, 26)
-	ctx.fillRect(left, top + 26, 30, lineWidth)
-	ctx.fillRect(left + 20, top + 26, lineWidth, 22)
-	ctx.fillRect(left, top + 48, 30, lineWidth)
-	ctx.moveTo(left + 42, top + 11)
-	ctx.lineTo(left + 51, top + 20)
-	ctx.lineTo(left + 42, top + 29)
-	ctx.lineTo(left + 33, top + 20)
-	ctx.lineTo(left + 42, top + 11)
+	ctx.fillRect(left, top, lineWidth, 14)
+	ctx.fillRect(left, top + 14, 18, lineWidth)
+	ctx.fillRect(left + 12, top + 18, lineWidth, 12)
+	ctx.fillRect(left, top + 30, 18, lineWidth)
+	ctx.moveTo(left + 28, top + 9)
+	ctx.lineTo(left + 32, top + 14)
+	ctx.lineTo(left + 28, top + 18)
+	ctx.lineTo(left + 23, top + 14)
+	ctx.lineTo(left + 28, top + 9)
 	ctx.fill()
-	ctx.moveTo(left + 76, top + 11)
-	ctx.lineTo(left + 86, top + 19)
-	ctx.lineTo(left + 42, top + 60)
-	ctx.lineTo(left + 34, top + 51)
-	ctx.lineTo(left + 76, top + 11)
+	ctx.moveTo(left + 46, top + 8)
+	ctx.lineTo(left + 50, top + 13)
+	ctx.lineTo(left + 25, top + 37)
+	ctx.lineTo(left + 22, top + 32)
+	ctx.lineTo(left + 46, top + 8)
 	ctx.fill()
-	ctx.moveTo(left + 60, top + 25)
-	ctx.lineTo(left + 86, top + 51)
-	ctx.lineTo(left + 78, top + 60)
-	ctx.lineTo(left + 54, top + 38)
-	ctx.lineTo(left + 60, top + 25)
+	ctx.moveTo(left + 38, top + 18)
+	ctx.lineTo(left + 50, top + 31)
+	ctx.lineTo(left + 46, top + 37)
+	ctx.lineTo(left + 35, top + 26)
+	ctx.lineTo(left + 38, top + 18)
 	ctx.fill()
 	ctx.closePath()
-	ctx.font = '32px Georgia'
-	ctx.fillText('已完成' + percent + '%', width / 2 - 73, height - 20)
+	ctx.font = '26px Arial'
+	ctx.fillText('上传中' + percent + '%', width / 2 - 60, height - 30)
 }
 const drawCircleMv = (n) => {
 	const arr = [{
@@ -134,11 +134,11 @@ const drawCircleMv = (n) => {
 	}]
 	const current = arr[n % arr.length]
 	ctx.clearRect(0, 0, width, height)
-	ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'
+	ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
 	ctx.fillRect(0, 0, width * 2, height * 2)
 	ctx.beginPath()
 	ctx.strokeStyle = `rgba(255, 255, 255, ${current.o})`
-	ctx.lineWidth = 6
+	ctx.lineWidth = 3
 	ctx.arc(point.x, point.y, point.r, current.s * Math.PI, Math.PI * current.e);
   ctx.stroke()
   ctx.closePath()
@@ -147,7 +147,7 @@ const drawCircleMv = (n) => {
 
 module.exports = {
 	start: () => {
-		canvas.style.cssText = `width: ${width / 2}px; height: ${height / 2}px; border-radius: 10px; position: fixed; left: 50%; top: 50%; transform: translate3d(-50%, -50%, 0); z-index: 100000`
+		canvas.style.cssText = `width: ${width / 2}px; height: ${height / 2}px; border-radius: 4px; position: fixed; left: 50%; top: 50%; transform: translate3d(-50%, -50%, 0); z-index: 100000`
 		canvas.width = width
 		canvas.height = height
 		document.body.appendChild(canvas)
@@ -178,6 +178,6 @@ module.exports = {
 		return canvas
 	},
 	end: () => {
-		percent = stopPercent + 7
+		// percent = stopPercent + 7
 	}
 }
