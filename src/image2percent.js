@@ -36,7 +36,7 @@ const stopPercent = parseInt(Math.random() * 5) + 85
 const canvas = document.createElement('canvas')
 const ctx = canvas.getContext('2d')
 const logoPos = {
-	left: 64,
+	left: 66,
 	top: 46
 }
 const point = {
@@ -46,6 +46,10 @@ const point = {
 }
 let timer
 let percent = 0
+let endStatus = 1
+let status
+let success = () => {}
+let fail = () => {}
 const drawLogo = () => {
 	const left = logoPos.left
 	const top = logoPos.top
@@ -69,7 +73,7 @@ const drawLogo = () => {
 	ctx.lineTo(left + 46, top + 8)
 	ctx.fill()
 	ctx.moveTo(left + 38, top + 18)
-	ctx.lineTo(left + 50, top + 31)
+	ctx.lineTo(left + 51, top + 31)
 	ctx.lineTo(left + 46, top + 37)
 	ctx.lineTo(left + 35, top + 26)
 	ctx.lineTo(left + 38, top + 18)
@@ -139,10 +143,59 @@ const drawCircleMv = (n) => {
 	ctx.beginPath()
 	ctx.strokeStyle = `rgba(255, 255, 255, ${current.o})`
 	ctx.lineWidth = 3
-	ctx.arc(point.x, point.y, point.r, current.s * Math.PI, Math.PI * current.e);
+	ctx.arc(point.x, point.y, point.r, current.s * Math.PI, Math.PI * current.e)
   ctx.stroke()
   ctx.closePath()
   drawLogo()
+}
+const drawEnd = () => {
+	let tip = ''
+	ctx.clearRect(0, 0, width, height)
+	ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+	ctx.fillRect(0, 0, width * 2, height * 2)
+	ctx.beginPath()
+	ctx.strokeStyle = '#fff'
+	ctx.lineWidth = 3
+	ctx.arc(point.x, point.y, point.r, 0, Math.PI * 0.5 * endStatus)
+	ctx.stroke()
+	ctx.closePath()
+	ctx.fillStyle = '#fff'
+	ctx.beginPath()
+	if (status) {
+		ctx.moveTo(point.x - 25, point.y)
+		ctx.lineTo(point.x - 8, point.y + 20)
+		if (endStatus > 3) {
+			ctx.lineTo(point.x + 24, point.y - 16)
+			ctx.lineTo(point.x + 20, point.y - 16)
+		}
+		ctx.lineTo(point.x - 8, point.y + 14)
+		ctx.lineTo(point.x - 20, point.y)
+		ctx.lineTo(point.x - 25, point.y)
+		tip = '提交成功'
+	} else {
+		ctx.moveTo(point.x - 20, point.y - 15)
+		ctx.lineTo(point.x + 15, point.y + 20)
+		ctx.lineTo(point.x + 20, point.y + 20)
+		ctx.lineTo(point.x - 15, point.y - 15)
+		ctx.lineTo(point.x - 20, point.y - 15)
+		if (endStatus > 3) {
+			ctx.moveTo(point.x + 15, point.y - 15)
+			ctx.lineTo(point.x + 20, point.y - 15)
+			ctx.lineTo(point.x - 15, point.y + 20)
+			ctx.lineTo(point.x - 20, point.y + 20)
+			ctx.lineTo(point.x + 15, point.y - 15)
+		}
+		tip = '提交失败'
+	}
+	ctx.fill()
+	ctx.closePath()
+	ctx.fillText(tip.slice(0, endStatus), width / 2 - 50, height - 30)
+	endStatus++
+	if (endStatus === 20) {
+		timer.cleanTimer()
+		document.body.removeChild(canvas)
+		status ? success() : fail()
+	}
 }
 
 module.exports = {
@@ -152,32 +205,42 @@ module.exports = {
 		canvas.height = height
 		document.body.appendChild(canvas)
 		let index = 0
+		let number = 0
 		let random = parseInt(2 + Math.random() * 3) * 10
 		timer = setTimer(() => {
-			drawCircleMv(index)
+			if (percent < 100) {
+				drawCircleMv(number)
+			} else {
+				drawEnd()
+			}
 			index++
-			if (percent > 100) {
-				percent = 100
-				timer.cleanTimer()
-				document.body.removeChild(canvas)
-			} else if (percent > 10 & percent < 20) {
+			number = parseInt(index / 2)
+			if (percent > 10 & percent < 20) {
 				percent = percent + 2
 			} else if ((percent > random && percent < random + 10) || (percent > random + 20 && percent < random + 30)) {
-				if (index % 5 === 0) {
+				if (number % 10 === 0) {
 					percent++
 				}
 			} else if (percent >= stopPercent && percent < stopPercent + 5) {
-				if (index % 40 === 0) {
+				if (number % 60 === 0) {
 					percent++
 				}
 			} else  {
 				percent++
 			}
 			percent = percent >= stopPercent + 5 && percent < stopPercent + 7 ? stopPercent + 5 : percent
-		}, 100)
+			percent = Math.min(percent, 100)
+		}, 40)
 		return canvas
 	},
-	end: () => {
-		// percent = stopPercent + 7
+	success: (fn) => {
+		success = fn || success
+		status = 1
+		percent = stopPercent + 7
+	},
+	fail: (fn) => {
+		fail = fn || fail
+		status = 0
+		percent = stopPercent + 7
 	}
 }

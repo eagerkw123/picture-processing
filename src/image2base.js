@@ -1,7 +1,6 @@
 const image2upload = require('./image2upload')
 let type, upload, isSupport, imgSrc, uploadType = 1
 const getBase64Image = (img, width, height) => {
-  console.log(type)
   var canvas = document.createElement('canvas')
   canvas.width = width || img.width
   canvas.height = height || img.height
